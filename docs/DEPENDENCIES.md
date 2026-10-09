@@ -67,7 +67,7 @@ Production PHP requests use compiled frontend assets. They do not start Node, Vi
 | PHP tests | PHPUnit 12.5.38 | Unit and feature tests |
 | Frontend tests | Vitest 5.0.3; Playwright 1.64.0 | Component/API and browser checks |
 
-`laravel/tinker` is available for controlled development/administration; do not expose it through the web. Boost, Pail, Pao, Pint, Faker, Mockery, Collision, and PHPUnit are development tools. The prebuilt release excludes Composer's development dependencies.
+`laravel/tinker` is available for controlled development/administration; do not expose it through the web. Pail, Pint, Faker, Mockery, Collision, and PHPUnit are development tools. The prebuilt release excludes Composer's development dependencies.
 
 No BlockNote XL or commercial extension is required by this implementation. Font families are served from the application's bundled WOFF2 assets; each family retains its license. See [Third-party notices](../THIRD_PARTY_NOTICES.md) before redistributing modified bundles.
 
