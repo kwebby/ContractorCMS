@@ -128,15 +128,20 @@ class CommunicationsController extends Controller
         } else {
             $data = array_filter($this->records->all('users'), fn ($u) => $u['role'] !== 'client');
         }
+        $fields = match (true) {
+            $request->user()->role === 'client' => ['id', 'name', 'role'],
+            Access::can($request->user(), 'team.manage') => ['id', 'name', 'email', 'role', 'active', 'email_verified_at', 'created_at'],
+            default => ['id', 'name', 'role', 'active'],
+        };
 
-        return response()->json(['data' => array_values(array_map(fn ($u) => Arr::only($u, $request->user()->role === 'client' ? ['id', 'name', 'role'] : ['id', 'name', 'email', 'role', 'active', 'email_verified_at']), $data)), 'roles' => array_keys(Access::ROLES)]);
+        return response()->json(['data' => array_values(array_map(fn ($u) => Arr::only($u, $fields), $data)), 'roles' => array_keys(Access::ROLES)]);
     }
 
     public function invite(Request $request): mixed
     {
         Access::authorize('team.manage');
         abort_unless(time() - (int) session('auth.password_confirmed_at', 0) < 900, 423, 'Please confirm your password.');
-        $data = $request->validate(['email' => 'required|email|max:254', 'role' => 'required|in:owner,office,dispatcher,estimator,technician,finance,payroll,marketing']);
+        $data = $request->validate(['name' => 'required|string|max:120', 'email' => 'required|email|max:254', 'role' => 'required|in:owner,office,dispatcher,estimator,technician,finance,payroll,marketing']);
         Access::authorizeRoleGrant($request->user(), $data['role']);
         $data['email'] = strtolower($data['email']);
         $token = Str::random(64);
@@ -154,9 +159,12 @@ class CommunicationsController extends Controller
         $data = $request->validate(['role' => 'sometimes|in:owner,office,dispatcher,estimator,technician,finance,payroll,marketing', 'active' => 'sometimes|boolean', 'custom_permissions' => 'sometimes|array', 'custom_permissions.*' => 'string|max:80']);
         abort_if($id === $request->user()->id, 422, 'You cannot change your own access here.');
         $record = $this->records->get('users', $id);
-        abort_if($record['role'] === 'client', 422);
-        Access::authorizeRoleGrant($request->user(), $record['role'], $record['custom_permissions'] ?? []);
-        Access::authorizeRoleGrant($request->user(), $data['role'] ?? $record['role'], $data['custom_permissions'] ?? []);
+        if ($record['role'] === 'client') {
+            abort_unless(array_keys($data) === ['active'], 422, 'Client accounts can only be activated or deactivated here.');
+        } else {
+            Access::authorizeRoleGrant($request->user(), $record['role'], $record['custom_permissions'] ?? []);
+            Access::authorizeRoleGrant($request->user(), $data['role'] ?? $record['role'], $data['custom_permissions'] ?? []);
+        }
         $record = $this->records->transaction(function () use ($id, $data) {
             $this->records->lock('user:'.$id);
             $current = $this->records->get('users', $id);

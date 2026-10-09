@@ -9,6 +9,7 @@ namespace App\Http\Controllers;
 
 use App\Contracts\RecordRepository;
 use App\Identity\CmsUser;
+use App\Support\Access;
 use App\Support\Outbox;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,6 +23,13 @@ use PragmaRX\Google2FA\Google2FA;
 
 class AuthController extends Controller
 {
+    /**
+     * Invalid codes accepted for one account before its challenge is locked.
+     */
+    private const MFA_MAX_FAILURES = 5;
+
+    private const MFA_LOCKOUT_SECONDS = 900;
+
     public function __construct(private RecordRepository $records) {}
 
     public function loginPage(): mixed
@@ -172,18 +180,32 @@ class AuthController extends Controller
     {
         $request->validate(['code' => 'required|digits:6']);
         abort_unless(session('mfa_pending') && time() - (int) session('mfa_pending_at', 0) < 600, 422, 'The authentication challenge expired. Sign in again.');
-        $user = $this->records->transaction(function () use ($request): array {
+        $result = $this->records->transaction(function () use ($request): array {
             $id = (string) session('mfa_pending');
             $this->records->lock('mfa:'.$id);
             $user = $this->records->get('users', $id);
             abort_unless(($user['active'] ?? true) && ($user['session_version'] ?? 0) === session('mfa_pending_session_version', 0), 403);
+            $failures = now()->timestamp - (int) ($user['mfa_failed_at'] ?? 0) < self::MFA_LOCKOUT_SECONDS ? (int) ($user['mfa_failures'] ?? 0) : 0;
+            if ($failures >= self::MFA_MAX_FAILURES) {
+                return ['user' => null, 'locked' => true];
+            }
             $replay = ($user['mfa_last_code'] ?? '') === hash('sha256', $request->input('code')) && now()->timestamp - ($user['mfa_last_at'] ?? 0) < 90;
             if ($replay || ! (new Google2FA)->verifyKey(Crypt::decryptString($user['mfa_secret']), $request->input('code'), 1)) {
-                throw ValidationException::withMessages(['code' => 'Authentication code is invalid or already used.']);
+                $this->records->update('users', $id, ['mfa_failures' => $failures + 1, 'mfa_failed_at' => now()->timestamp]);
+
+                return ['user' => null, 'locked' => $failures + 1 >= self::MFA_MAX_FAILURES];
             }
 
-            return $this->records->update('users', $id, ['mfa_last_code' => hash('sha256', $request->input('code')), 'mfa_last_at' => now()->timestamp]);
+            return ['user' => $this->records->update('users', $id, ['mfa_last_code' => hash('sha256', $request->input('code')), 'mfa_last_at' => now()->timestamp, 'mfa_failures' => 0]), 'locked' => false];
         });
+        if (! $result['user']) {
+            if ($result['locked']) {
+                session()->forget(['mfa_pending', 'mfa_pending_at', 'mfa_pending_session_version']);
+                throw ValidationException::withMessages(['code' => 'Too many invalid codes. Wait 15 minutes, then sign in again.']);
+            }
+            throw ValidationException::withMessages(['code' => 'Authentication code is invalid or already used.']);
+        }
+        $user = $result['user'];
         Auth::login(new CmsUser($user));
         $request->session()->regenerate();
         session()->forget(['mfa_pending', 'mfa_pending_at', 'mfa_pending_session_version', 'user_session_version']);
@@ -202,16 +224,33 @@ class AuthController extends Controller
         $data = $request->validate(['token' => 'required|string', 'name' => 'required|string|max:120', 'password' => ['required', 'confirmed', Password::min(12)]]);
         $user = $this->records->transaction(function () use ($data): array {
             $invitation = $this->consume($data['token'], 'invite');
+            $inviter = $this->records->find('users', (string) ($invitation['invited_by'] ?? ''));
+            abort_unless($inviter && ($inviter['active'] ?? true) && Access::canGrantRole(new CmsUser($inviter), $invitation['role']), 422, 'This invitation is no longer valid. Ask the owner for a new one.');
             $this->records->lock('email:'.$invitation['email']);
-            abort_if((bool) $this->records->all('users', ['email' => $invitation['email']]), 409, 'An account already exists. Ask the owner to update access.');
+            $existing = $this->records->all('users', ['email' => $invitation['email']])[0] ?? null;
+            $account = ['name' => $data['name'], 'role' => $invitation['role'], 'password' => Hash::make($data['password']), 'email_verified_at' => now()->toISOString(), 'active' => true];
+            if ($existing) {
+                abort_unless($this->unclaimedSignup($existing), 409, 'An account already exists. Ask the owner to update access.');
 
-            return $this->records->create('users', ['name' => $data['name'], 'email' => $invitation['email'], 'role' => $invitation['role'], 'password' => Hash::make($data['password']), 'email_verified_at' => now()->toISOString(), 'active' => true]);
+                return $this->records->update('users', $existing['id'], $account + ['customer_id' => null, 'custom_permissions' => [], 'mfa_enabled' => false, 'mfa_secret' => null, 'session_version' => ($existing['session_version'] ?? 0) + 1]);
+            }
+
+            return $this->records->create('users', $account + ['email' => $invitation['email']]);
         });
         Auth::login(new CmsUser($user));
         $request->session()->regenerate();
         $request->session()->forget(['mfa_passed', 'mfa_pending', 'pending_mfa_secret', 'pending_mfa_user_id', 'pending_mfa_started_at', 'auth.password_confirmed_at', 'user_session_version']);
 
         return redirect('/app');
+    }
+
+    /**
+     * A self-registered client account whose email address was never verified does not prove
+     * ownership of that address, so a staff invitation to the address may replace it.
+     */
+    private function unclaimedSignup(array $user): bool
+    {
+        return ($user['role'] ?? '') === 'client' && empty($user['email_verified_at']);
     }
 
     private function token(string $type, string $userId, int $minutes): string

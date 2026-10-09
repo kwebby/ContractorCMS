@@ -21,6 +21,7 @@ class FilesController extends Controller
     public function upload(Request $request): mixed
     {
         $data = $request->validate(['file' => 'required|file|max:10240|mimetypes:image/jpeg,image/png,image/webp,text/plain,application/pdf', 'visibility' => 'sometimes|in:private,draft,public', 'resource_type' => 'sometimes|in:jobs,conversations', 'resource_id' => 'required_with:resource_type|string']);
+        abort_if($request->user()->role === 'client' && ! $request->user()->email_verified_at, 403, 'Verify your email first.');
         $visibility = $data['visibility'] ?? 'private';
         if (in_array($visibility, ['public', 'draft'], true)) {
             Access::authorize('publishing.manage');

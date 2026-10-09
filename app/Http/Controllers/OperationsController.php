@@ -15,10 +15,16 @@ use App\Support\Outbox;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\RateLimiter;
 
 class OperationsController extends Controller
 {
     private const RESOURCES = ['leads', 'customers', 'jobs', 'tasks', 'assets', 'agreements', 'projects', 'purchases'];
+
+    /**
+     * Inquiry acknowledgements sent to one address per hour, so the public form cannot relay mail.
+     */
+    private const ACKNOWLEDGEMENTS_PER_HOUR = 3;
 
     public function __construct(private RecordRepository $records) {}
 
@@ -157,7 +163,7 @@ class OperationsController extends Controller
             return $record;
         });
 
-        return response()->json(['data' => $record], $id ? 200 : 201);
+        return response()->json(['data' => Access::publicRecord($request->user(), $resource, $record)], $id ? 200 : 201);
     }
 
     public function publicLead(Request $request): mixed
@@ -172,7 +178,9 @@ class OperationsController extends Controller
         foreach ($this->records->all('users', ['role' => 'owner']) as $user) {
             Outbox::notify($user['id'], 'New inquiry from '.$data['name'], 'leads', '/app/leads', 'high');
         }
-        Outbox::push('email', ['to' => $data['email'], 'template_key' => 'inquiry', 'template_data' => ['recipient_name' => $data['name'], 'service' => $data['service']]], 'lead-ack:'.$lead['id']);
+        if (RateLimiter::attempt('lead-ack:'.hash('sha256', $data['email']), self::ACKNOWLEDGEMENTS_PER_HOUR, fn (): bool => true, 3600)) {
+            Outbox::push('email', ['to' => $data['email'], 'template_key' => 'inquiry', 'template_data' => ['recipient_name' => $data['name'], 'service' => $data['service']]], 'lead-ack:'.$lead['id']);
+        }
 
         return response()->json(['message' => 'Request received. Our office will contact you to confirm the next step.'], 201);
     }

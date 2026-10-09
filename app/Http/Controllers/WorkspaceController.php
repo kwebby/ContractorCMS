@@ -19,6 +19,13 @@ class WorkspaceController extends Controller
 {
     private const SETTINGS_PAGES = ['business', 'mail', 'payments', 'invoice-design', 'ai', 'security', 'health', 'email-templates'];
 
+    /**
+     * Audit action prefixes that reveal finance, payroll, access or customer-portal activity.
+     *
+     * @var array<string, string>
+     */
+    private const AUDIT_PERMISSIONS = ['payroll.' => 'payroll.manage', 'payslip.' => 'payroll.manage', 'payment.' => 'finance.manage', 'invoice.' => 'finance.manage', 'deposit.' => 'finance.manage', 'team.' => 'team.manage', 'mfa.' => 'team.manage', 'settings.' => 'settings.manage', 'email_template.' => 'settings.manage', 'client.' => 'crm.manage'];
+
     public function __construct(private RecordRepository $records) {}
 
     private function workspaceBrand(): array
@@ -92,31 +99,50 @@ class WorkspaceController extends Controller
         $finance = Access::can($user, 'finance.manage') || $user->role === 'client';
         $invoices = $finance ? array_values(array_filter($this->records->all('invoices'), $filter)) : [];
         $leads = (Access::can($user, 'crm.manage') || Access::can($user, 'crm.view')) ? $this->records->all('leads') : [];
-        $outstanding = 0;
-        $collected = 0;
+        $currency = Settings::get('business')['currency'] ?? 'USD';
+        $totals = [];
         foreach ($invoices as $invoice) {
             if (in_array($invoice['status'] ?? '', ['issued', 'uncollectible'])) {
                 $invoice = app(FinanceService::class)->balance($invoice);
-                $outstanding += (int) ($invoice['balance_minor'] ?? $invoice['total_minor'] ?? 0);
-                $collected += (int) ($invoice['paid_minor'] ?? 0);
+                $invoiceCurrency = $invoice['currency'] ?? $currency;
+                $totals[$invoiceCurrency] ??= ['currency' => $invoiceCurrency, 'outstanding_minor' => 0, 'collected_minor' => 0];
+                $totals[$invoiceCurrency]['outstanding_minor'] += (int) ($invoice['balance_minor'] ?? $invoice['total_minor'] ?? 0);
+                $totals[$invoiceCurrency]['collected_minor'] += (int) ($invoice['paid_minor'] ?? 0);
             }
         }
+        $primary = $totals[$currency] ?? ['outstanding_minor' => 0, 'collected_minor' => 0];
+        unset($totals[$currency]);
         $canReadTasks = $user->role !== 'client' && ($operations || Access::can($user, 'crm.manage') || Access::can($user, 'crm.view'));
         $tasks = $canReadTasks ? array_values(array_filter($this->records->all('tasks'), fn (array $r): bool => $user->role !== 'technician' || in_array($user->id, $r['assigned_to'] ?? [], true))) : [];
-        $activity = Access::can($user, 'reports.view') ? array_slice(array_reverse($this->records->all('audit')), 0, 10) : [];
+        $activity = Access::can($user, 'reports.view') ? array_slice(array_values(array_filter(array_reverse($this->records->all('audit')), fn (array $event): bool => $this->canSeeAudit($user, $event))), 0, 10) : [];
 
-        return response()->json(['data' => ['metrics' => ['open_leads' => count(array_filter($leads, fn ($r) => ! in_array($r['stage'] ?? 'new', ['won', 'lost']))), 'active_jobs' => count(array_filter($jobs, fn ($r) => ! in_array($r['status'] ?? 'scheduled', ['completed', 'cancelled']))), 'outstanding_minor' => $outstanding, 'collected_minor' => $collected, 'currency' => Settings::get('business')['currency'] ?? 'USD'], 'jobs' => array_map(fn (array $record): array => Access::publicRecord($user, 'jobs', $record), $jobs), 'leads' => $leads, 'tasks' => $tasks, 'activity' => $activity, 'notifications' => $this->records->all('notifications', ['user_id' => $user->id])]]);
+        return response()->json(['data' => ['metrics' => ['open_leads' => count(array_filter($leads, fn ($r) => ! in_array($r['stage'] ?? 'new', ['won', 'lost']))), 'active_jobs' => count(array_filter($jobs, fn ($r) => ! in_array($r['status'] ?? 'scheduled', ['completed', 'cancelled']))), 'outstanding_minor' => $primary['outstanding_minor'], 'collected_minor' => $primary['collected_minor'], 'currency' => $currency, 'other_currencies' => array_values($totals)], 'jobs' => array_map(fn (array $record): array => Access::publicRecord($user, 'jobs', $record), $jobs), 'leads' => $leads, 'tasks' => $tasks, 'activity' => $activity, 'notifications' => $this->records->all('notifications', ['user_id' => $user->id])]]);
     }
 
-    public function reports(): mixed
+    public function reports(Request $request): mixed
     {
         Access::authorize('reports.view');
+        $user = $request->user();
         $leadSources = [];
         foreach ($this->records->all('leads') as $lead) {
             $key = $lead['source'] ?? 'unknown';
             $leadSources[$key] = ($leadSources[$key] ?? 0) + 1;
         }
+        $canReadJobs = Access::can($user, 'operations.manage') || Access::can($user, 'operations.view') || Access::can($user, 'finance.manage');
+        $jobs = $canReadJobs ? array_map(fn (array $record): array => Access::publicRecord($user, 'jobs', $record), $this->records->all('jobs')) : [];
+        $invoices = Access::can($user, 'finance.manage') ? $this->records->all('invoices') : [];
 
-        return response()->json(['data' => ['lead_sources' => $leadSources, 'jobs' => $this->records->all('jobs'), 'invoices' => $this->records->all('invoices'), 'generated_at' => now()->toISOString()]]);
+        return response()->json(['data' => ['lead_sources' => $leadSources, 'jobs' => $jobs, 'invoices' => $invoices, 'generated_at' => now()->toISOString()]]);
+    }
+
+    private function canSeeAudit(object $user, array $event): bool
+    {
+        foreach (self::AUDIT_PERMISSIONS as $prefix => $permission) {
+            if (str_starts_with((string) ($event['action'] ?? ''), $prefix)) {
+                return Access::can($user, $permission);
+            }
+        }
+
+        return true;
     }
 }

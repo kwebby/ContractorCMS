@@ -81,8 +81,17 @@ class Access
 
     public static function authorizeRoleGrant(object $actor, string $role, array $permissions = []): void
     {
+        abort_unless(self::canGrantRole($actor, $role, $permissions), 403, 'You cannot grant permissions you do not hold.');
+    }
+
+    public static function canGrantRole(object $actor, string $role, array $permissions = []): bool
+    {
         foreach (array_merge(self::ROLES[$role] ?? [], $permissions) as $permission) {
-            abort_unless(self::can($actor, $permission), 403, 'You cannot grant permissions you do not hold.');
+            if (! self::can($actor, $permission)) {
+                return false;
+            }
         }
+
+        return true;
     }
 }

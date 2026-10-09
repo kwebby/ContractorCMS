@@ -8,6 +8,8 @@
 node_modules
 vendor
 storage
+public/hot
+public/build
 bootstrap/cache/*.php
 database/*.sqlite
 reports

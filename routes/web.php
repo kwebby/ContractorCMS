@@ -61,7 +61,7 @@ Route::middleware('auth')->group(function (): void {
     Route::put('/api/v1/settings/{group}', [SettingsController::class, 'put']);
     Route::post('/api/v1/mail/test', [SettingsController::class, 'testMail']);
     Route::get('/api/v1/health', [SettingsController::class, 'health']);
-    Route::post('/api/v1/files', [FilesController::class, 'upload']);
+    Route::post('/api/v1/files', [FilesController::class, 'upload'])->middleware('throttle:30,1');
     Route::get('/api/v1/{resource}', [OperationsController::class, 'index'])->whereIn('resource', ['leads', 'customers', 'jobs', 'tasks', 'assets', 'agreements', 'projects', 'purchases']);
     Route::post('/api/v1/{resource}', [OperationsController::class, 'store'])->whereIn('resource', ['leads', 'customers', 'jobs', 'tasks', 'assets', 'agreements', 'projects', 'purchases']);
     Route::get('/api/v1/{resource}/{id}', [OperationsController::class, 'show'])->whereIn('resource', ['leads', 'customers', 'jobs', 'tasks', 'assets', 'agreements', 'projects', 'purchases']);

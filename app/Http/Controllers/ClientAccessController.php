@@ -66,9 +66,14 @@ class ClientAccessController extends Controller
 
             return $user;
         });
-        Auth::login(new CmsUser($user));
         $request->session()->regenerate();
-        $request->session()->forget(['user_session_version', 'mfa_passed']);
+        $request->session()->forget(['user_session_version', 'mfa_passed', 'mfa_pending', 'mfa_pending_at', 'mfa_pending_session_version']);
+        if ($user['mfa_enabled'] ?? false) {
+            session(['mfa_pending' => $user['id'], 'mfa_pending_at' => time(), 'mfa_pending_session_version' => $user['session_version'] ?? 0]);
+
+            return redirect('/mfa')->with('success', 'Your customer portal is linked. Enter your authentication code to continue.');
+        }
+        Auth::login(new CmsUser($user));
 
         return redirect('/app')->with('success', 'Your customer portal is ready.');
     }

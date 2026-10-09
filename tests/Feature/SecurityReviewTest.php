@@ -68,7 +68,7 @@ class SecurityReviewTest extends TestCase
         $manager = $this->user('office', ['custom_permissions' => ['team.manage']]);
         $technician = $this->user('technician');
         $this->actingAs($manager)->withSession(['auth.password_confirmed_at' => time()]);
-        $this->postJson('/api/v1/invitations', ['email' => 'new-owner@example.test', 'role' => 'owner'])->assertForbidden();
+        $this->postJson('/api/v1/invitations', ['name' => 'New Owner', 'email' => 'new-owner@example.test', 'role' => 'owner'])->assertForbidden();
         $this->patchJson('/api/v1/team/'.$technician->id, ['role' => 'owner'])->assertForbidden();
         $this->patchJson('/api/v1/team/'.$technician->id, ['custom_permissions' => ['*']])->assertForbidden();
         $this->assertSame('technician', $this->records->get('users', $technician->id)['role']);

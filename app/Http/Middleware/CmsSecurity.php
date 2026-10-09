@@ -43,10 +43,15 @@ class CmsSecurity
         }
         $response = $next($request);
         $response->headers->set('X-Content-Type-Options', 'nosniff');
-        $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
+        if (! $response->headers->has('Referrer-Policy')) {
+            $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
+        }
+        if ($request->secure() && app()->environment('production')) {
+            $response->headers->set('Strict-Transport-Security', 'max-age=31536000');
+        }
         $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-        if (! is_file(public_path('hot'))) {
+        if (! (app()->environment('local') && is_file(public_path('hot')))) {
             $nonce = Vite::cspNonce();
             $response->headers->set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'nonce-{$nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'");
         }

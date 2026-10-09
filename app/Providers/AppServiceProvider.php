@@ -27,6 +27,6 @@ class AppServiceProvider extends ServiceProvider
     {
         Auth::provider('cms', fn ($app) => new RepositoryUserProvider($app->make(RecordRepository::class)));
         RateLimiter::for('public', fn ($request) => Limit::perMinute(15)->by($request->ip()));
-        RateLimiter::for('login', fn ($request) => Limit::perMinute(6)->by(strtolower($request->input('email', '')).'|'.$request->ip()));
+        RateLimiter::for('login', fn ($request) => Limit::perMinute(6)->by(strtolower(is_string($email = $request->input('email')) ? $email : '').'|'.$request->ip()));
     }
 }

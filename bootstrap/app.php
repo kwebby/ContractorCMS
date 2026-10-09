@@ -22,12 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [HandleInertiaRequests::class, CmsSecurity::class]);
         $middleware->validateCsrfTokens(except: ['api/v1/payments/webhooks/stripe', 'api/v1/payments/webhooks/paypal']);
         $middleware->redirectGuestsTo('/login');
-        if (env('APP_ENV') === 'production') {
-            $middleware->trustHosts(at: fn () => ['^'.preg_quote((string) parse_url(config('app.url'), PHP_URL_HOST), '/').'$'], subdomains: false);
-        }
-        if ($proxies = env('TRUSTED_PROXIES')) {
-            $middleware->trustProxies(at: array_values(array_filter(array_map('trim', explode(',', $proxies)))));
-        }
+        $middleware->trustHosts(at: fn (): array => app()->environment('production') && ($host = parse_url((string) config('app.url'), PHP_URL_HOST)) ? ['^'.preg_quote($host, '/').'$'] : [], subdomains: false);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

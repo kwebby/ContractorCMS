@@ -51,6 +51,12 @@ export default function Dashboard({
     const d = state.data ?? {};
     const metrics = d.metrics ?? {};
     const currency = metrics.currency ?? business.currency ?? "USD";
+    const otherCurrencies = (field: string, fallback: string) => {
+        const others = (metrics.other_currencies ?? [])
+            .filter((total: any) => total[field])
+            .map((total: any) => money(total[field], total.currency));
+        return others.length ? `Plus ${others.join(", ")}` : fallback;
+    };
     const today = dateKey();
     const jobs = (d.jobs ?? []).filter(
         (j: RecordData) => dateKey(j.scheduled_at ?? "") === today,
@@ -172,7 +178,10 @@ export default function Dashboard({
                                     currency,
                                 ),
                                 icon: FileText,
-                                note: "Awaiting payment",
+                                note: otherCurrencies(
+                                    "outstanding_minor",
+                                    "Awaiting payment",
+                                ),
                                 href: "/app/invoices",
                                 accent: "amber",
                             },
@@ -180,9 +189,12 @@ export default function Dashboard({
                                 label: client ? "Paid to date" : "Collected",
                                 value: money(metrics.collected_minor, currency),
                                 icon: ArrowDownLeft,
-                                note: client
-                                    ? "Your settled payments"
-                                    : "Settled invoice payments",
+                                note: otherCurrencies(
+                                    "collected_minor",
+                                    client
+                                        ? "Your settled payments"
+                                        : "Settled invoice payments",
+                                ),
                                 href: "/app/invoices",
                                 accent: "green",
                             },
@@ -548,7 +560,7 @@ export function Reports({ business }: { business: any }) {
                             <strong>
                                 {money(
                                     metrics.outstanding_minor,
-                                    business.currency,
+                                    metrics.currency ?? business.currency,
                                 )}
                             </strong>
                         </div>
@@ -557,7 +569,7 @@ export function Reports({ business }: { business: any }) {
                             <strong>
                                 {money(
                                     metrics.collected_minor,
-                                    business.currency,
+                                    metrics.currency ?? business.currency,
                                 )}
                             </strong>
                         </div>
