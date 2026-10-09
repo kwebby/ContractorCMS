@@ -153,9 +153,12 @@ class InfrastructureHardeningTest extends TestCase
     public function test_mysql_key_columns_use_case_sensitive_collation_and_other_drivers_are_untouched(): void
     {
         $migration = require database_path('migrations/2026_10_09_154541_use_binary_collation_for_cms_record_keys.php');
-        $this->assertSame([], DB::connection()->pretend(fn () => $migration->up()));
         $default = config('database.default');
         try {
+            foreach (['sqlite', 'pgsql'] as $connection) {
+                config(['database.default' => $connection]);
+                $this->assertSame([], DB::connection($connection)->pretend(fn () => $migration->up()), $connection);
+            }
             foreach (['mysql', 'mariadb'] as $connection) {
                 config(['database.default' => $connection]);
                 $up = array_column(DB::connection($connection)->pretend(fn () => $migration->up()), 'query');
