@@ -14,6 +14,8 @@ use Illuminate\Support\Carbon;
 
 final class NotificationDigest
 {
+    private const RESCAN_MINUTES = 60;
+
     public function __construct(private readonly RecordRepository $records) {}
 
     public function enqueueInstant(array $notification, ?array $emailPayload = null): void
@@ -56,7 +58,12 @@ final class NotificationDigest
             return 0;
         }
         $day = $localTime->toDateString();
+        $scan = $this->records->find('notification_digest_scans', $day);
+        if ($scan && Carbon::parse($scan['completed_at'])->gt(now()->subMinutes(self::RESCAN_MINUTES))) {
+            return 0;
+        }
         $queued = 0;
+        $complete = true;
         foreach ($this->records->all('users') as $user) {
             if (($user['active'] ?? true) === false || empty($user['email_verified_at']) || empty($user['email']) || ($user['notification_preferences']['email_enabled'] ?? true) === false) {
                 continue;
@@ -84,10 +91,31 @@ final class NotificationDigest
                 return true;
             });
             if ($created && ++$queued >= max(1, $limit)) {
+                $complete = false;
                 break;
             }
         }
+        if ($complete) {
+            $this->recordScan($day);
+        }
 
         return $queued;
+    }
+
+    /**
+     * Remember a completed pass over every user so later runs that day skip the full notification
+     * scan until the rescan interval passes; late notifications still go out on the next pass.
+     */
+    private function recordScan(string $day): void
+    {
+        $this->records->transaction(function () use ($day): void {
+            $this->records->lock('notification-digest-scan:'.$day);
+            $values = ['day' => $day, 'completed_at' => now()->toIso8601String()];
+            if ($this->records->find('notification_digest_scans', $day)) {
+                $this->records->update('notification_digest_scans', $day, $values);
+            } else {
+                $this->records->create('notification_digest_scans', $values, $day);
+            }
+        });
     }
 }

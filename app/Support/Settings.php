@@ -27,7 +27,10 @@ class Settings
     {
         $store = app(RecordRepository::class);
         $data = in_array($group, ['mail', 'payments', 'ai'], true) ? ['encrypted' => Crypt::encryptString(json_encode($data, JSON_THROW_ON_ERROR))] : $data;
-        $store->find('settings', $group) ? $store->update('settings', $group, $data) : $store->create('settings', $data, $group);
+        $store->transaction(function () use ($store, $group, $data): void {
+            $store->lock('settings:'.$group);
+            $store->find('settings', $group) ? $store->update('settings', $group, $data) : $store->create('settings', $data, $group);
+        });
     }
 
     public static function masked(string $group): array

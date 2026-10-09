@@ -15,6 +15,18 @@ use ZipArchive;
 
 class BackupService
 {
+    public const MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024;
+
+    public const MAX_ENTRY_BYTES = 128 * 1024 * 1024;
+
+    public const MAX_TOTAL_BYTES = 2 * 1024 * 1024 * 1024;
+
+    public const MAX_ENTRIES = 50000;
+
+    private const ENTRY_NAME = '~^(snapshot\.json|files/[A-Za-z0-9_./-]+)$~D';
+
+    private const OVERSIZED_HINT = ' Use a database-native dump (pg_dump or mysqldump) plus a copy of storage/app/private for an installation of this size.';
+
     public function create(string $password): string
     {
         $this->requireSqlAndPassword($password);
@@ -23,6 +35,23 @@ class BackupService
         }
         $root = rtrim(Storage::disk('local')->path(''), DIRECTORY_SEPARATOR);
         $this->assertNoSymlinks($root);
+        $snapshot = DB::transaction(fn () => ['format' => 1, 'created_at' => now()->toISOString(), 'key_fingerprint' => hash('sha256', config('app.key')), 'records' => DB::table('cms_records')->get()->map(fn ($row) => (array) $row)->all(), 'sequences' => DB::table('cms_locks')->get()->map(fn ($row) => (array) $row)->all()]);
+        $files = [];
+        $sizes = [];
+        foreach (Storage::disk('local')->allFiles() as $relative) {
+            if (str_starts_with($relative, 'backups/') || str_starts_with($relative, 'restore-') || str_starts_with($relative, '.')) {
+                continue;
+            }
+            $absolute = $root.'/'.$relative;
+            if (is_link($absolute)) {
+                throw new \RuntimeException('Symlinks are not permitted in protected storage.');
+            }
+            $files[$relative] = hash_file('sha256', $absolute);
+            $sizes['files/'.$relative] = (int) filesize($absolute);
+        }
+        $snapshot['files'] = $files;
+        $json = json_encode($snapshot, JSON_THROW_ON_ERROR);
+        $this->assertRestorable(['snapshot.json' => strlen($json)] + $sizes);
         $directory = $root.'/backups';
         if (! is_dir($directory)) {
             mkdir($directory, 0700, true);
@@ -34,24 +63,13 @@ class BackupService
         }
         $zip->setPassword($password);
         try {
-            $snapshot = DB::transaction(fn () => ['format' => 1, 'created_at' => now()->toISOString(), 'key_fingerprint' => hash('sha256', config('app.key')), 'records' => DB::table('cms_records')->get()->map(fn ($row) => (array) $row)->all(), 'sequences' => DB::table('cms_locks')->get()->map(fn ($row) => (array) $row)->all()]);
-            $files = [];
-            foreach (Storage::disk('local')->allFiles() as $relative) {
-                if (str_starts_with($relative, 'backups/') || str_starts_with($relative, 'restore-') || str_starts_with($relative, '.')) {
-                    continue;
-                }
-                $absolute = $root.'/'.$relative;
-                if (is_link($absolute)) {
-                    throw new \RuntimeException('Symlinks are not permitted in protected storage.');
-                }
-                $files[$relative] = hash_file('sha256', $absolute);
-                $zip->addFile($absolute, 'files/'.$relative);
+            foreach (array_keys($files) as $relative) {
+                $zip->addFile($root.'/'.$relative, 'files/'.$relative);
                 if (! $zip->setEncryptionName('files/'.$relative, ZipArchive::EM_AES_256)) {
                     throw new \RuntimeException('Unable to encrypt a backup file.');
                 }
             }
-            $snapshot['files'] = $files;
-            $zip->addFromString('snapshot.json', json_encode($snapshot, JSON_THROW_ON_ERROR));
+            $zip->addFromString('snapshot.json', $json);
             if (! $zip->setEncryptionName('snapshot.json', ZipArchive::EM_AES_256)) {
                 throw new \RuntimeException('Unable to encrypt the database snapshot.');
             }
@@ -64,9 +82,37 @@ class BackupService
             @unlink($path);
             throw new \RuntimeException('Backup could not be finalized.');
         }
+        clearstatcache(true, $path);
+        if (filesize($path) > self::MAX_ARCHIVE_BYTES) {
+            @unlink($path);
+            throw new \RuntimeException('The encrypted archive exceeds the 1 GiB restore limit, so it was discarded.'.self::OVERSIZED_HINT);
+        }
         chmod($path, 0600);
 
         return $path;
+    }
+
+    /**
+     * Reject, before anything is written, a backup that restore() would later refuse.
+     *
+     * @param  array<string, int>  $entries  uncompressed size in bytes keyed by archive entry name
+     */
+    public function assertRestorable(array $entries): void
+    {
+        if (count($entries) > self::MAX_ENTRIES) {
+            throw new \RuntimeException(sprintf('This backup would contain %d entries; restore accepts at most %d.', count($entries), self::MAX_ENTRIES).self::OVERSIZED_HINT);
+        }
+        foreach ($entries as $name => $bytes) {
+            if (! preg_match(self::ENTRY_NAME, $name) || str_contains($name, '..') || str_contains($name, '//')) {
+                throw new \RuntimeException(sprintf('Rename "%s" before backing up; restore accepts only letters, digits, dots, dashes, underscores and slashes in file paths.', $name));
+            }
+            if ($bytes > self::MAX_ENTRY_BYTES) {
+                throw new \RuntimeException(sprintf('"%s" is %d MiB; restore accepts entries up to %d MiB.', $name, (int) ceil($bytes / 1048576), self::MAX_ENTRY_BYTES / 1048576).self::OVERSIZED_HINT);
+            }
+        }
+        if (array_sum($entries) > self::MAX_TOTAL_BYTES) {
+            throw new \RuntimeException(sprintf('This backup would hold %d MiB of data; restore accepts up to %d MiB.', (int) ceil(array_sum($entries) / 1048576), self::MAX_TOTAL_BYTES / 1048576).self::OVERSIZED_HINT);
+        }
     }
 
     public function restore(string $path, string $password): void
@@ -78,7 +124,7 @@ class BackupService
         if (DB::table('cms_records')->exists() || DB::table('cms_locks')->exists()) {
             throw new \RuntimeException('Restore only to an empty, migrated database.');
         }
-        if (! is_file($path) || filesize($path) > 1024 * 1024 * 1024) {
+        if (! is_file($path) || filesize($path) > self::MAX_ARCHIVE_BYTES) {
             throw new \RuntimeException('Archive is missing or exceeds the 1 GiB restore limit.');
         }
         $root = rtrim(Storage::disk('local')->path(''), DIRECTORY_SEPARATOR);
@@ -105,7 +151,7 @@ class BackupService
                 }
                 $name = $stat['name'];
                 $total += $stat['size'];
-                if ($zip->numFiles > 50000 || $total > 2 * 1024 * 1024 * 1024 || $stat['size'] > 128 * 1024 * 1024 || isset($names[$name]) || ! preg_match('~^(snapshot\.json|files/[A-Za-z0-9_./-]+)$~D', $name) || str_contains($name, '..') || str_contains($name, '//')) {
+                if ($zip->numFiles > self::MAX_ENTRIES || $total > self::MAX_TOTAL_BYTES || $stat['size'] > self::MAX_ENTRY_BYTES || isset($names[$name]) || ! preg_match(self::ENTRY_NAME, $name) || str_contains($name, '..') || str_contains($name, '//')) {
                     throw new \RuntimeException('Invalid or oversized archive.');
                 }
                 $names[$name] = true;

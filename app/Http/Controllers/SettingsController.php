@@ -74,12 +74,13 @@ class SettingsController extends Controller
     public function health(RecordRepository $records): mixed
     {
         Access::authorize('settings.manage');
-        $outbox = $records->all('outbox');
-        $pendingDates = array_column(array_filter($outbox, fn ($r) => in_array($r['status'], ['pending', 'processing'])), 'created_at');
+        $pending = $records->all('outbox', ['status' => 'pending']);
+        $failed = $records->all('outbox', ['status' => 'failed']);
+        $pendingDates = array_column([...$pending, ...$records->all('outbox', ['status' => 'processing'])], 'created_at');
         sort($pendingDates);
         $heartbeat = Settings::get('scheduler')['last_run_at'] ?? null;
         $extra = ['storage_free_mib' => (int) floor(disk_free_space(storage_path('app/private')) / 1048576), 'queue_oldest_at' => $pendingDates[0] ?? null, 'cron_healthy' => $heartbeat ? now()->diffInMinutes(Carbon::parse($heartbeat), true) < 3 : false];
 
-        return response()->json(['data' => [...$extra, 'database' => config('cms.data_provider'), 'php' => PHP_VERSION, 'storage_writable' => is_writable(storage_path('app/private')), 'scheduler' => Settings::get('scheduler'), 'pending' => count(array_filter($outbox, fn ($r) => $r['status'] === 'pending')), 'failed' => array_values(array_map(fn ($r) => Arr::only($r, ['id', 'type', 'attempts', 'last_error', 'updated_at']), array_filter($outbox, fn ($r) => $r['status'] === 'failed'))), 'mail_configured' => (bool) (Settings::get('mail')['host'] ?? null), 'ai_configured' => (bool) (Settings::get('ai')['enabled'] ?? false)]]);
+        return response()->json(['data' => [...$extra, 'database' => config('cms.data_provider'), 'php' => PHP_VERSION, 'storage_writable' => is_writable(storage_path('app/private')), 'scheduler' => Settings::get('scheduler'), 'pending' => count($pending), 'failed' => array_map(fn ($r) => Arr::only($r, ['id', 'type', 'attempts', 'last_error', 'updated_at']), $failed), 'mail_configured' => (bool) (Settings::get('mail')['host'] ?? null), 'ai_configured' => (bool) (Settings::get('ai')['enabled'] ?? false)]]);
     }
 }

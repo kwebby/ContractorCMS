@@ -20,7 +20,11 @@ class ProcessOutbox extends Command
     public function handle(OutboxProcessor $processor): int
     {
         if (! app()->isDownForMaintenance()) {
-            app(NotificationDigest::class)->enqueueDaily();
+            try {
+                app(NotificationDigest::class)->enqueueDaily();
+            } catch (\Throwable $error) {
+                report($error);
+            }
         }
         $result = $processor->run(max(1, min(500, (int) $this->option('limit'))), max(1, min(50, (int) $this->option('seconds'))));
         $this->info(json_encode($result));

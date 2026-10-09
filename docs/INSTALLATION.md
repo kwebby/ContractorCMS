@@ -171,7 +171,7 @@ Install the following crontab as the application owner, replacing the PHP path a
 * * * * * cd /var/www/contractor-cms && /usr/bin/php artisan schedule:run >> storage/logs/scheduler.log 2>&1
 ```
 
-The schedule processes the durable outbox once per minute, with a 50-item/45-second bound and overlap protection. This delivers mail, notifications, and digests. It does not require Laravel's database queue, Redis, or a persistent worker. Rotate `scheduler.log` with your host's log rotation facilities.
+The schedule processes the durable outbox once per minute, with a 50-item/45-second bound and overlap protection, and runs `cms:prune` once a day to delete expired planning-tool data. This delivers mail, notifications, and digests. It does not require Laravel's database queue, Redis, or a persistent worker. Rotate `scheduler.log` with your host's log rotation facilities.
 
 For a manual processing check:
 

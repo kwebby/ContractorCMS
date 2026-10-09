@@ -12,11 +12,16 @@ use App\Communications\NotificationDigest;
 use App\Contracts\RecordRepository;
 use App\Finance\Money;
 use App\Support\Settings;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class OutboxProcessor
 {
+    private const MAX_ATTEMPTS = 5;
+
+    private const LEASE_MINUTES = 5;
+
     public function __construct(private RecordRepository $records) {}
 
     public function run(int $limit = 50, int $seconds = 45): array
@@ -27,36 +32,88 @@ class OutboxProcessor
         $started = microtime(true);
         $result = ['processed' => 0, 'failed' => 0];
         $this->heartbeat();
-        foreach ($this->records->all('outbox') as $candidate) {
+        foreach ($this->candidates() as $candidate) {
             if (array_sum($result) >= $limit || microtime(true) - $started > $seconds) {
                 break;
             }
-            $event = $this->records->transaction(function () use ($candidate) {
-                $this->records->lock('outbox-lease:'.$candidate['id']);
-                $row = $this->records->get('outbox', $candidate['id']);
-                $eligible = ($row['status'] === 'pending' && $row['available_at'] <= now()->toISOString()) || ($row['status'] === 'processing' && ($row['lease_until'] ?? '') < now()->toISOString());
-                if (! $eligible) {
-                    return null;
-                }
+            $event = $this->claim($candidate['id']);
+            if ($event === null) {
+                continue;
+            }
+            if ($event['status'] === 'failed') {
+                $result['failed']++;
 
-                return $this->records->update('outbox', $row['id'], ['status' => 'processing', 'lease_token' => (string) Str::uuid(), 'lease_until' => now()->addMinutes(5)->toISOString(), 'attempts' => $row['attempts'] + 1]);
-            });
-            if (! $event) {
                 continue;
             }
             try {
                 $this->dispatch($event);
-                $this->finish($event, ['status' => 'sent', 'completed_at' => now()->toISOString(), 'last_error' => null]);
+                $this->finish($event, ['status' => 'sent', 'completed_at' => now()->toISOString(), 'last_error' => null] + ($event['type'] === 'email' ? ['payload' => $this->redact($event['payload'])] : []));
                 $result['processed']++;
             } catch (\Throwable $error) {
                 // Provider exceptions may contain credentials; only retain the exception class.
-                $this->finish($event, ['status' => $event['attempts'] >= 5 ? 'failed' : 'pending', 'available_at' => now()->addSeconds(min(3600, 30 * (2 ** $event['attempts'])))->toISOString(), 'last_error' => class_basename($error)]);
+                $this->finish($event, ['status' => $event['attempts'] >= self::MAX_ATTEMPTS ? 'failed' : 'pending', 'available_at' => now()->addSeconds(min(3600, 30 * (2 ** $event['attempts'])))->toISOString(), 'last_error' => class_basename($error)]);
                 $result['failed']++;
             }
         }
         $this->heartbeat();
 
         return $result;
+    }
+
+    /**
+     * Due pending events and processing events whose lease expired, oldest first.
+     * Sent and failed history is never scanned, so it cannot starve new work.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function candidates(): array
+    {
+        $now = now()->toISOString();
+        $due = array_filter($this->records->all('outbox', ['status' => 'pending']), fn (array $row): bool => ($row['available_at'] ?? '') <= $now);
+        $abandoned = array_filter($this->records->all('outbox', ['status' => 'processing']), fn (array $row): bool => ($row['lease_until'] ?? '') < $now);
+        $candidates = [...array_values($due), ...array_values($abandoned)];
+        usort($candidates, fn (array $left, array $right): int => [$left['created_at'], $left['id']] <=> [$right['created_at'], $right['id']]);
+
+        return $candidates;
+    }
+
+    /**
+     * Lease an eligible event, or fail an abandoned event that already used every attempt.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function claim(string $id): ?array
+    {
+        return $this->records->transaction(function () use ($id): ?array {
+            $this->records->lock('outbox-lease:'.$id);
+            $row = $this->records->find('outbox', $id);
+            if ($row === null) {
+                return null;
+            }
+            $now = now()->toISOString();
+            $due = $row['status'] === 'pending' && ($row['available_at'] ?? '') <= $now;
+            $abandoned = $row['status'] === 'processing' && ($row['lease_until'] ?? '') < $now;
+            if (! $due && ! $abandoned) {
+                return null;
+            }
+            if ($abandoned && ($row['attempts'] ?? 0) >= self::MAX_ATTEMPTS) {
+                return $this->records->update('outbox', $id, ['status' => 'failed', 'lease_until' => null, 'last_error' => 'LeaseExpired']);
+            }
+
+            return $this->records->update('outbox', $id, ['status' => 'processing', 'lease_token' => (string) Str::uuid(), 'lease_until' => now()->addMinutes(self::LEASE_MINUTES)->toISOString(), 'attempts' => ($row['attempts'] ?? 0) + 1]);
+        });
+    }
+
+    /**
+     * Drop delivered message content, which can carry sign-in, invitation or verification links,
+     * while keeping the addressing and template metadata used for audit.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function redact(array $payload): array
+    {
+        return Arr::except($payload, ['body', 'text', 'action_url', 'template_data', '_template_snapshot']) + ['content_redacted_at' => now()->toISOString()];
     }
 
     private function finish(array $event, array $data): void

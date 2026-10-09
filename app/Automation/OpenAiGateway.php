@@ -84,14 +84,31 @@ final class OpenAiGateway
         if (preg_match('/<[^>]+>|javascript:|\b(?:guaranteed safe|certified safe|definitely safe|binding quote)\b/i', $combined)) {
             throw new RuntimeException('The brief needs human review. Please contact the team directly.');
         }
-        preg_match_all('/(?:[$€£]\s*\d[\d,.]*|\b(?:USD|CAD)\s*\d[\d,.]*)/i', $combined, $amounts);
-        foreach ($amounts[0] as $amount) {
-            if (! str_contains(preg_replace('/\s+/', '', $input['details']), preg_replace('/\s+/', '', $amount))) {
+        $supported = $this->amounts($input['details']);
+        foreach ($this->amounts($combined) as $amount) {
+            if (! in_array($amount, $supported, true)) {
                 throw new RuntimeException('The brief included an unsupported price. Please contact the team for an estimate.');
             }
         }
 
         return ['result' => $result, 'tokens' => max(0, (int) $response->json('usage.total_tokens', 0)), 'provider_id' => $response->json('id')];
+    }
+
+    /**
+     * Currency amounts in the text, reduced to their numeric value so sentence punctuation,
+     * spacing and thousands separators do not change how a restated amount compares.
+     *
+     * @return list<string>
+     */
+    private function amounts(string $text): array
+    {
+        preg_match_all('/(?:\$|€|£|\b(?:USD|CAD))\s*(\d(?:[\d,.]*\d)?)/i', $text, $matches);
+
+        return array_map(function (string $number): string {
+            $number = str_replace(',', '', $number);
+
+            return substr_count($number, '.') === 1 ? rtrim(rtrim($number, '0'), '.') : $number;
+        }, $matches[1]);
     }
 
     private function schema(): array

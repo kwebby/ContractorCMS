@@ -17,6 +17,7 @@ Server/environment configuration lives in `.env` or the process environment. Bus
 | `DATA_PROVIDER` | `postgres`, `mysql`, or `supabase`; `firestore` requires explicit experimental opt-in |
 | `DB_CONNECTION` | `pgsql` for PostgreSQL/Supabase; `mysql` for MySQL |
 | `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | Dedicated application database connection |
+| `DB_ISOLATION_LEVEL` | MySQL/MariaDB transaction isolation; defaults to `READ COMMITTED`, which record locking relies on. Requires the default `ROW` or `MIXED` binary log format |
 | `DB_SSLMODE` | PostgreSQL TLS mode; `require` or correctly configured `verify-full` for a hosted database; `prefer` is the local example default |
 | `SESSION_DRIVER` | `file` in the baseline deployment |
 | `SESSION_ENCRYPT` | `true` |
@@ -27,7 +28,7 @@ Server/environment configuration lives in `.env` or the process environment. Bus
 | `FILESYSTEM_DISK` | `local`; CMS services explicitly use protected local storage |
 | `QUEUE_CONNECTION` | `sync`; the CMS durable outbox has its own scheduler processor |
 | `CMS_MFA_REQUIRED` | `true` in production; applies to accounts with privileged permissions |
-| `TRUSTED_PROXIES` | Comma-separated actual reverse-proxy IPs/CIDRs, only when a proxy exists |
+| `TRUSTED_PROXIES` | Comma-separated actual reverse-proxy IPs/CIDRs, only when a proxy exists; read through `config/trustedproxy.php`, so refresh the configuration cache after changing it |
 | `MAIL_MAILER` | `log` for development; app-configured SMTP is preferred for business use |
 | `MAIL_HOST`, `MAIL_PORT`, `MAIL_SCHEME`, `MAIL_USERNAME`, `MAIL_PASSWORD` | Laravel fallback SMTP settings if using `MAIL_MAILER=smtp` without saved CMS mail settings |
 | `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Fallback sender identity |
@@ -88,7 +89,7 @@ The Notifications workspace filters/sorts by status, category, priority, action,
 
 The `notifications` settings group supports `email_enabled` and `digest` (`instant`/`daily`) through the authorized settings API (`GET`/`PUT /api/v1/settings/notifications`). The current settings directory does not include a standalone notification-preferences page. These are installation-level email/digest settings, not an external push-notification integration.
 
-`routes/console.php` schedules `cms:outbox --limit=50 --seconds=45` every minute. The processor records a heartbeat, uses durable leases, retries work, and creates daily digests. Use one configured scheduler per application storage/cache boundary. Do not install cron and an unnecessary second scheduler for the same instance.
+`routes/console.php` schedules `cms:outbox --limit=50 --seconds=45` every minute and `cms:prune` daily at 03:17. The outbox processor records a heartbeat, uses durable leases, retries work, removes message content after successful delivery, and creates daily digests; after the first digest pass of the day, users are re-checked hourly. `cms:prune` deletes expired planning-tool input, report requests and their confirmation tokens. Use one configured scheduler per application storage/cache boundary. Do not install cron and an unnecessary second scheduler for the same instance.
 
 ## Stripe
 

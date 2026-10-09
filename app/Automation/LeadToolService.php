@@ -10,6 +10,7 @@ namespace App\Automation;
 use App\Contracts\RecordRepository;
 use App\Support\Outbox;
 use App\Support\Settings;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -20,6 +21,10 @@ final class LeadToolService
         'project-scope' => ['name' => 'Project scope generator', 'description' => 'Organize your goals, preferences, and open decisions before you speak with a contractor.', 'placeholder' => 'Describe the project, what you want to change, and any priorities or constraints.'],
         'quote-comparison' => ['name' => 'Quote comparison organizer', 'description' => 'Compare what your quotes actually include and identify questions to clarify.', 'placeholder' => 'Paste two or more quotes, labeled Quote A, Quote B, and so on. Remove personal and payment information first.'],
     ];
+
+    private const RETENTION_DAYS = 7;
+
+    private const GENERATION_LEASE_SECONDS = 120;
 
     public function __construct(private readonly RecordRepository $records, private readonly OpenAiGateway $gateway) {}
 
@@ -57,49 +62,29 @@ final class LeadToolService
 
                 return $existing;
             }
-            $this->records->lock('ai-budget:'.$day);
-            $budget = $this->records->find('ai_usage', $day) ?? ['requests' => 0, 'tokens' => 0];
-            if ($budget['requests'] >= ($settings['daily_request_limit'] ?? 100) || $budget['tokens'] + $reservation > ($settings['daily_token_limit'] ?? 100000)) {
-                throw new HttpException(429, 'The daily planning-tool allowance has been reached. Please contact the team directly.');
-            }
-            $totals = ['requests' => $budget['requests'] + 1, 'tokens' => $budget['tokens'] + $reservation];
-            if (isset($budget['id'])) {
-                $this->records->update('ai_usage', $day, $totals);
-            } else {
-                $this->records->create('ai_usage', $totals, $day);
-            }
+            $this->reserve($day, $reservation, $settings);
 
             return $this->records->create('tool_runs', [
                 'tool' => $tool, 'status' => 'processing', 'visitor_hash' => $visitor, 'input_hash' => $inputHash, 'input' => $details,
-                'reservation' => $reservation, 'budget_day' => $day, 'expires_at' => now()->addDays(7)->toIso8601String(),
+                'reservation' => $reservation, 'budget_day' => $day, 'expires_at' => now()->addDays(self::RETENTION_DAYS)->toIso8601String(),
             ], $id);
         });
+        if ($run['status'] === 'processing') {
+            $run = $this->claim($id, $day, $reservation, $settings);
+        }
         if ($run['status'] === 'completed') {
             return $this->publicResult($run);
         }
         if ($run['status'] === 'failed') {
             throw new HttpException(502, 'The previous attempt could not complete. Start a new request to try again.');
         }
-        $claim = $this->records->transaction(function () use ($id): bool {
-            $this->records->lock('tool-generation:'.$id);
-            $run = $this->records->get('tool_runs', $id);
-            if (! empty($run['started_at'])) {
-                return false;
-            }
-            $this->records->update('tool_runs', $id, ['started_at' => now()->toIso8601String()]);
-
-            return true;
-        });
-        if (! $claim) {
-            throw new HttpException(409, 'This brief is already being prepared. Please wait before retrying.');
-        }
         try {
             $response = $this->gateway->generate($tool, ['details' => $details, 'request_id' => $requestId], $settings);
-            $run = $this->records->transaction(function () use ($id, $response, $day, $reservation): array {
-                $this->records->lock('ai-budget:'.$day);
-                $budget = $this->records->get('ai_usage', $day);
-                $usage = $response['tokens'] > 0 ? $response['tokens'] : $reservation;
-                $this->records->update('ai_usage', $day, ['tokens' => max(0, $budget['tokens'] - $reservation + $usage)]);
+            $run = $this->records->transaction(function () use ($id, $response, $run): array {
+                $this->records->lock('ai-budget:'.$run['budget_day']);
+                $budget = $this->records->get('ai_usage', $run['budget_day']);
+                $usage = $response['tokens'] > 0 ? $response['tokens'] : $run['reservation'];
+                $this->records->update('ai_usage', $run['budget_day'], ['tokens' => max(0, $budget['tokens'] - $run['reservation'] + $usage)]);
 
                 return $this->records->update('tool_runs', $id, ['status' => 'completed', 'result' => $response['result'], 'tokens' => $usage, 'provider_id' => $response['provider_id']]);
             });
@@ -109,6 +94,46 @@ final class LeadToolService
         }
 
         return $this->publicResult($run);
+    }
+
+    /**
+     * Start the provider call for a processing run. A run whose previous attempt stopped without
+     * finishing (its lease expired) is reclaimed; that attempt's reservation stays spent because the
+     * provider may have billed it, and the new attempt reserves its own allowance.
+     */
+    private function claim(string $id, string $day, int $reservation, array $settings): array
+    {
+        return $this->records->transaction(function () use ($id, $day, $reservation, $settings): array {
+            $this->records->lock('tool-generation:'.$id);
+            $run = $this->records->get('tool_runs', $id);
+            if ($run['status'] !== 'processing') {
+                return $run;
+            }
+            if (empty($run['started_at'])) {
+                return $this->records->update('tool_runs', $id, ['started_at' => now()->toIso8601String()]);
+            }
+            if (Carbon::parse($run['started_at'])->gt(now()->subSeconds(self::GENERATION_LEASE_SECONDS))) {
+                throw new HttpException(409, 'This brief is already being prepared. Please wait before retrying.');
+            }
+            $this->reserve($day, $reservation, $settings);
+
+            return $this->records->update('tool_runs', $id, ['started_at' => now()->toIso8601String(), 'reservation' => $reservation, 'budget_day' => $day, 'reclaimed_attempts' => ($run['reclaimed_attempts'] ?? 0) + 1]);
+        });
+    }
+
+    private function reserve(string $day, int $reservation, array $settings): void
+    {
+        $this->records->lock('ai-budget:'.$day);
+        $budget = $this->records->find('ai_usage', $day) ?? ['requests' => 0, 'tokens' => 0];
+        if ($budget['requests'] >= ($settings['daily_request_limit'] ?? 100) || $budget['tokens'] + $reservation > ($settings['daily_token_limit'] ?? 100000)) {
+            throw new HttpException(429, 'The daily planning-tool allowance has been reached. Please contact the team directly.');
+        }
+        $totals = ['requests' => $budget['requests'] + 1, 'tokens' => $budget['tokens'] + $reservation];
+        if (isset($budget['id'])) {
+            $this->records->update('ai_usage', $day, $totals);
+        } else {
+            $this->records->create('ai_usage', $totals, $day);
+        }
     }
 
     public function requestReport(string $runId, string $visitor, array $contact): void
@@ -121,21 +146,29 @@ final class LeadToolService
             $email = strtolower($contact['email']);
             $id = hash('sha256', $runId.'|'.$email);
             $existing = $this->records->find('tool_report_requests', $id);
-            if ($existing) {
+            if ($existing && ($existing['status'] !== 'pending' || strtotime($existing['expires_at']) > time())) {
                 return;
             }
+            if ($existing) {
+                $this->records->delete('tool_report_tokens', $existing['token_hash']);
+            }
             $token = Str::random(64);
-            $this->records->create('tool_report_requests', [
+            $values = [
                 'run_id' => $runId, 'name' => $contact['name'], 'email' => $email,
                 'marketing_consent' => (bool) ($contact['marketing_consent'] ?? false),
                 'contact_requested' => (bool) ($contact['contact_requested'] ?? false),
                 'token_hash' => hash('sha256', $token), 'status' => 'pending', 'expires_at' => now()->addHours(24)->toIso8601String(),
-            ], $id);
+            ];
+            if ($existing) {
+                $this->records->update('tool_report_requests', $id, $values);
+            } else {
+                $this->records->create('tool_report_requests', $values, $id);
+            }
             $this->records->create('tool_report_tokens', ['request_id' => $id], hash('sha256', $token));
             Outbox::push('email', [
                 'to' => $email, 'subject' => 'Confirm your email to receive your planning brief',
                 'body' => 'Confirm that this is your email address to receive the planning brief you requested: '.rtrim(config('app.url'), '/').'/tools/reports/verify/'.$token."\n\nThis link expires in 24 hours. If you did not request this email, you can ignore it.",
-            ], 'tool-report-verify:'.$id);
+            ], 'tool-report-verify:'.$id.($existing ? ':'.hash('sha256', $token) : ''));
         });
     }
 
@@ -175,6 +208,74 @@ final class LeadToolService
 
             return $this->publicResult($run);
         });
+    }
+
+    /**
+     * Delete visitor input, report requests and confirmation tokens once they expire. Leads created
+     * from verified requests keep their own copy of the consented contact details.
+     *
+     * @return array{tool_runs: int, tool_report_requests: int, tool_report_tokens: int}
+     */
+    public function purgeExpired(): array
+    {
+        $deleted = ['tool_runs' => 0, 'tool_report_requests' => 0, 'tool_report_tokens' => 0];
+        foreach ($this->records->all('tool_report_requests') as $candidate) {
+            $removed = $this->records->transaction(function () use ($candidate): array {
+                $runId = (string) ($candidate['run_id'] ?? '');
+                $this->records->lock('tool-report:'.$runId);
+                $request = $this->records->find('tool_report_requests', $candidate['id']);
+                if (! $request) {
+                    return [];
+                }
+                $removed = [];
+                $requestExpired = $this->expired($request['expires_at'] ?? null);
+                $run = $runId !== '' ? $this->records->find('tool_runs', $runId) : null;
+                $deleteRequest = ! $run || $this->expired($run['expires_at'] ?? null) || ($requestExpired && $request['status'] === 'pending');
+                $tokenId = (string) ($request['token_hash'] ?? '');
+                if (($requestExpired || $deleteRequest) && $tokenId !== '' && $this->records->find('tool_report_tokens', $tokenId)) {
+                    $this->records->delete('tool_report_tokens', $tokenId);
+                    $removed[] = 'tool_report_tokens';
+                }
+                if ($deleteRequest) {
+                    $this->records->delete('tool_report_requests', $request['id']);
+                    $removed[] = 'tool_report_requests';
+                }
+
+                return $removed;
+            });
+            foreach ($removed as $collection) {
+                $deleted[$collection]++;
+            }
+        }
+        foreach ($this->records->all('tool_report_tokens') as $token) {
+            $requestId = (string) ($token['request_id'] ?? '');
+            if ($requestId === '' || ! $this->records->find('tool_report_requests', $requestId)) {
+                $this->records->delete('tool_report_tokens', $token['id']);
+                $deleted['tool_report_tokens']++;
+            }
+        }
+        foreach ($this->records->all('tool_runs') as $candidate) {
+            if (! $this->expired($candidate['expires_at'] ?? null)) {
+                continue;
+            }
+            $deleted['tool_runs'] += $this->records->transaction(function () use ($candidate): int {
+                $this->records->lock('tool-generation:'.$candidate['id']);
+                $run = $this->records->find('tool_runs', $candidate['id']);
+                if (! $run || ! $this->expired($run['expires_at'] ?? null)) {
+                    return 0;
+                }
+                $this->records->delete('tool_runs', $run['id']);
+
+                return 1;
+            });
+        }
+
+        return $deleted;
+    }
+
+    private function expired(?string $timestamp): bool
+    {
+        return $timestamp !== null && $timestamp !== '' && Carbon::parse($timestamp)->lte(now());
     }
 
     private function publicResult(array $run): array
