@@ -38,7 +38,11 @@ final class LayoutRenderer
             $this->fail('Rendered layout exceeds 2 MB.');
         }
         $css = '';
-        foreach ($project['styles'] ?? [] as $rule) {
+        $styles = $project['styles'] ?? [];
+        if (! is_array($styles)) {
+            $this->fail('Layout styles must be a list of CSS rules.');
+        }
+        foreach ($styles as $rule) {
             if (! is_array($rule) || ! empty($rule['atRuleType']) && $rule['atRuleType'] !== 'media') {
                 $this->fail('Only regular and responsive CSS rules are supported.');
             }
@@ -46,9 +50,16 @@ final class LayoutRenderer
             if (is_string($selectors)) {
                 $selectors = [$selectors];
             }
+            if (! is_array($selectors)) {
+                $this->fail('Invalid CSS selector.');
+            }
             $selector = implode(',', array_map(function (mixed $item): string {
                 if (is_array($item)) {
-                    $item = (($item['type'] ?? 1) === 2 ? '#' : '.').($item['name'] ?? '');
+                    $name = $item['name'] ?? '';
+                    if (! is_scalar($name)) {
+                        $this->fail('Invalid CSS selector.');
+                    }
+                    $item = (($item['type'] ?? 1) === 2 ? '#' : '.').$name;
                 }
                 if (! is_string($item) || ! preg_match('/^[a-zA-Z0-9.#_ :>+~,\[\]="-]+$/D', $item) || strlen($item) > 300) {
                     $this->fail('Invalid CSS selector.');
@@ -62,7 +73,7 @@ final class LayoutRenderer
             $declaration = $selector.'{'.$this->style($rule['style'] ?? []).'}';
             if (($rule['atRuleType'] ?? '') === 'media') {
                 $media = $rule['mediaText'] ?? '';
-                if (! preg_match('/^\((?:max|min)-width:\s*\d{2,4}px\)$/D', $media)) {
+                if (! is_string($media) || ! preg_match('/^\((?:max|min)-width:\s*\d{2,4}px\)$/D', $media)) {
                     $this->fail('Responsive rules must specify a min/max pixel width.');
                 }
                 $declaration = '@media '.$media.'{'.$declaration.'}';
@@ -96,6 +107,9 @@ final class LayoutRenderer
             $this->fail('Executable components are prohibited.');
         }
         $type = $node['type'] ?? 'default';
+        if (! is_string($type)) {
+            $this->fail('Unsupported layout component.');
+        }
         if ($type === 'cms-content') {
             if ($hasContent) {
                 $this->fail('A layout may contain only one writing content block.');
@@ -115,15 +129,23 @@ final class LayoutRenderer
         if (! in_array($type, ['default', 'wrapper', 'text', 'textnode', 'link', 'image', 'section', ''], true)) {
             $this->fail('Unsupported layout component: '.$type);
         }
-        $tag = strtolower($node['tagName'] ?? ($type === 'link' ? 'a' : ($type === 'image' ? 'img' : 'div')));
+        $tag = $node['tagName'] ?? ($type === 'link' ? 'a' : ($type === 'image' ? 'img' : 'div'));
+        if (! is_string($tag)) {
+            $this->fail('Unsupported layout HTML tag.');
+        }
+        $tag = strtolower($tag);
         if ($type === 'wrapper' && $tag === 'body') {
             $tag = 'div';
         }
         if (! in_array($tag, ['div', 'section', 'header', 'footer', 'main', 'aside', 'article', 'nav', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'strong', 'em', 'blockquote', 'br', 'hr', 'img'], true)) {
             $this->fail('Unsupported layout HTML tag.');
         }
+        $nodeAttributes = $node['attributes'] ?? [];
+        if (! is_array($nodeAttributes)) {
+            $this->fail('Unsupported layout attribute.');
+        }
         $attributes = '';
-        foreach ($node['attributes'] ?? [] as $key => $value) {
+        foreach ($nodeAttributes as $key => $value) {
             if (! in_array($key, ['id', 'class', 'title', 'href', 'alt', 'src', 'aria-label', 'role'], true) || ! is_scalar($value)) {
                 $this->fail('Unsupported layout attribute.');
             }
@@ -137,7 +159,17 @@ final class LayoutRenderer
             $attributes .= ' '.$key.'="'.htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"';
         }
         if (! empty($node['classes'])) {
-            $classes = array_map(fn (mixed $class): string => is_string($class) ? $class : ($class['name'] ?? ''), $node['classes']);
+            if (! is_array($node['classes'])) {
+                $this->fail('Layout classes must be a list.');
+            }
+            $classes = array_map(function (mixed $class): string {
+                $name = is_array($class) ? ($class['name'] ?? '') : $class;
+                if ($name !== null && ! is_scalar($name)) {
+                    $this->fail('Layout classes must be names.');
+                }
+
+                return (string) $name;
+            }, $node['classes']);
             $attributes .= ' class="'.htmlspecialchars(implode(' ', $classes), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"';
         }
         if (! empty($node['style'])) {

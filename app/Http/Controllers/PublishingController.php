@@ -21,7 +21,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Throwable;
 
 final class PublishingController extends Controller
 {
@@ -383,7 +385,7 @@ final class PublishingController extends Controller
         } else {
             $layout = $this->layouts->render($page['layout'] ?? [], $content, $contactWidget);
         }
-        $theme = $this->themes->render($page, $business, $layout['body'], $guided ? '' : $contactWidget, $themeId, ['header' => $managedHeader, 'footer' => $managedFooter]);
+        $theme = $this->renderTheme($page, $business, $layout['body'], $guided ? '' : $contactWidget, $themeId, ['header' => $managedHeader, 'footer' => $managedFooter]);
 
         return response()->view('public.page', [
             'page' => $page, 'business' => $business, 'pages' => $pages, 'metadata' => $metadata,
@@ -392,6 +394,25 @@ final class PublishingController extends Controller
             'websiteCss' => $presentation->css($website['appearance'] ?? []),
             'managedHeader' => $managedHeader, 'managedFooter' => $managedFooter,
         ])->header('Cache-Control', 'private, no-store')->header('X-Content-Type-Options', 'nosniff')->header('X-Robots-Tag', $preview ? 'noindex, nofollow' : $metadata['robots']);
+    }
+
+    /**
+     * A failure in the active theme is reported and the page falls back to the
+     * built-in theme, so one broken template cannot take every public page down.
+     * An explicitly requested candidate preview still surfaces its error.
+     */
+    private function renderTheme(array $page, array $business, string $body, string $contactWidget, ?string $themeId, array $managedWidgets): ?array
+    {
+        try {
+            return $this->themes->render($page, $business, $body, $contactWidget, $themeId, $managedWidgets);
+        } catch (Throwable $exception) {
+            if ($themeId !== null) {
+                throw $exception;
+            }
+            report(new RuntimeException('The active theme could not render page '.($page['id'] ?? 'unknown').'; the built-in theme was used.', 0, $exception));
+
+            return null;
+        }
     }
 
     private function business(): array

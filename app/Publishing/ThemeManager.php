@@ -13,13 +13,23 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Twig\Environment;
+use Twig\Error\SyntaxError;
 use Twig\Extension\SandboxExtension;
 use Twig\Loader\ArrayLoader;
 use Twig\Sandbox\SecurityPolicy;
+use Twig\Source;
+use Twig\Token;
 use ZipArchive;
 
 final class ThemeManager
 {
+    /** Every public business field a template can read, populated for contract validation. */
+    private const PREVIEW_SITE = [
+        'name' => 'Preview Contracting', 'legal_name' => 'Preview Contracting Ltd.', 'phone' => '+1 555 0100', 'email' => 'office@example.com',
+        'address' => '100 Main Street', 'city' => 'Springfield', 'region' => 'ON', 'postal_code' => 'A1A 1A1', 'country' => 'CA',
+        'trade' => 'plumbing', 'service_areas' => 'Springfield and nearby communities',
+    ];
+
     public function __construct(private readonly RecordRepository $records) {}
 
     public function listing(): array
@@ -179,6 +189,7 @@ final class ThemeManager
                         $this->assertHomepageSupport($record['published'], $id);
                     }
                 }
+                $this->validateTemplateContracts($theme['manifest'], storage_path('app/private/'.$theme['path']), $id, app(ThemeSettings::class)->get($id)['values']);
                 foreach (array_keys($theme['manifest']['templates']) as $type) {
                     $page = ['type' => $type, 'title' => 'Activation preview', 'excerpt' => 'Preview'];
                     $this->render($page, ['name' => 'Preview'], '<p>Preview content</p>', '<form>Contact form</form>', $id);
@@ -323,9 +334,17 @@ final class ThemeManager
         }
     }
 
-    /** Exercise both layout modes before a package becomes eligible for activation. */
+    /**
+     * Exercise both layout modes before a package becomes eligible for
+     * activation. Optional public fields are rendered both populated and
+     * empty, so a conditional cannot add or remove a slot only at runtime.
+     */
     private function validateTemplateContracts(array $manifest, string $directory, string $id, ?array $settingsValues = null): void
     {
+        $contexts = [
+            ['site' => self::PREVIEW_SITE, 'excerpt' => 'Preview content'],
+            ['site' => [], 'excerpt' => ''],
+        ];
         $values = [];
         if (is_file($directory.'/settings.schema.json')) {
             $schema = app(ThemeSettings::class)->schema($this->decode(File::get($directory.'/settings.schema.json')));
@@ -343,14 +362,16 @@ final class ThemeManager
         foreach ($templates as $type => $template) {
             $modes = $type === 'home' && in_array('guided-homepage', $manifest['capabilities'] ?? [], true) ? [false, true] : [false];
             foreach ($modes as $guided) {
-                $tokens = array_map(fn (string $name): string => 'CMS'.$name.Str::random(32), ['CONTENT', 'CONTACT', 'HEADER', 'FOOTER']);
-                $html = $this->renderTemplate(File::get($directory.'/'.$template), [
-                    'site' => ['name' => 'Preview'], 'settings' => $values,
-                    'page' => ['title' => 'Preview', 'excerpt' => 'Preview content', 'content' => $tokens[0], 'guided_homepage' => $guided],
-                    'widgets' => ['contact' => $tokens[1], 'header' => $tokens[2], 'footer' => $tokens[3]],
-                    'assets' => ['base' => '/theme-assets/'.$id.'/assets'],
-                ]);
-                $this->assertTemplateSlots($this->purify($html, $id), $manifest, $tokens, $guided);
+                foreach ($contexts as $context) {
+                    $tokens = array_map(fn (string $name): string => 'CMS'.$name.Str::random(32), ['CONTENT', 'CONTACT', 'HEADER', 'FOOTER']);
+                    $html = $this->renderTemplate(File::get($directory.'/'.$template), [
+                        'site' => $context['site'], 'settings' => $values,
+                        'page' => ['title' => 'Preview', 'excerpt' => $context['excerpt'], 'content' => $tokens[0], 'locale' => 'en-US', 'guided_homepage' => $guided],
+                        'widgets' => ['contact' => $tokens[1], 'header' => $tokens[2], 'footer' => $tokens[3]],
+                        'assets' => ['base' => '/theme-assets/'.$id.'/assets'],
+                    ]);
+                    $this->assertTemplateSlots($this->purify($html, $id), $manifest, $tokens, $guided);
+                }
             }
         }
     }
@@ -403,21 +424,12 @@ final class ThemeManager
             }
         }
         if ($extension === 'twig') {
-            if (strlen($contents) > 50000 || preg_match('/\.\.|\*\*|\b(?:matches|range|random|source|include|constant)\b|<\s*(?:script|iframe|object|embed|meta|link|base|html|head|body)\b|\son[a-z]+\s*=|javascript\s*:/i', $contents)) {
+            if (strlen($contents) > 50000 || preg_match('/<\s*(?:script|iframe|object|embed|meta|link|base|html|head|body)\b|\son[a-z]+\s*=|javascript\s*:/i', $contents) || $this->containsReservedTwigCode($contents)) {
                 $this->fail('Template contains prohibited executable elements or expressions.');
             }
         }
         if ($extension === 'css') {
-            if (preg_match('/\\\\|@import|expression\s*\(|behavior\s*:|-moz-binding|<|>/i', $contents)) {
-                $this->fail('CSS imports, escapes, and executable styles are prohibited.');
-            }
-            preg_match_all('/url\s*\(\s*[\'"]?([^\)\'"\s]+)[\'"]?\s*\)/i', $contents, $matches);
-            foreach ($matches[1] as $url) {
-                $this->validatePath($url);
-                if (! preg_match('~^(?:images|fonts)/[A-Za-z0-9_/-]+\.(?:png|jpe?g|webp|woff2)$~D', $url)) {
-                    $this->fail('CSS URLs must reference local images/ or fonts/ assets.');
-                }
-            }
+            $this->validateStylesheet($contents);
         }
         if (in_array($extension, ['png', 'jpg', 'jpeg', 'webp'], true)) {
             $details = @getimagesizefromstring($contents);
@@ -430,6 +442,121 @@ final class ThemeManager
         }
         if ($extension === 'woff2' && ! str_starts_with($contents, 'wOF2')) {
             $this->fail('Invalid WOFF2 font.');
+        }
+    }
+
+    /**
+     * Twig's own lexer separates template code from static text, so reserved
+     * operators and names are rejected only where Twig would evaluate them.
+     * Comments, verbatim text and string literals are never evaluated.
+     */
+    private function containsReservedTwigCode(string $source): bool
+    {
+        if (! preg_match('/\.\.|\*\*|matches|range|random|source|include|constant/i', $source)) {
+            return false;
+        }
+        try {
+            $stream = (new Environment(new ArrayLoader))->tokenize(new Source($source, 'theme'));
+        } catch (SyntaxError $exception) {
+            $this->fail('Template syntax is invalid: '.Str::limit($exception->getRawMessage(), 120));
+        }
+        while (! $stream->isEOF()) {
+            $token = $stream->next();
+            if ($token->test(Token::TEXT_TYPE) || $token->test(Token::STRING_TYPE)) {
+                continue;
+            }
+            if (in_array(strtolower((string) $token->getValue()), ['..', '**', 'matches', 'range', 'random', 'source', 'include', 'constant'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Browsers fetch stylesheet references from url() tokens, from strings
+     * inside URL-bearing functions and from custom properties substituted
+     * into them. The scan follows CSS tokenization of comments, strings and
+     * unquoted URLs, so a reference cannot hide from the validator.
+     */
+    private function validateStylesheet(string $css): void
+    {
+        if (preg_match('/\\\\|@import|expression\s*\(|behavior\s*:|-moz-binding|<|>/i', $css)) {
+            $this->fail('CSS imports, escapes, and executable styles are prohibited.');
+        }
+        $blocks = [];
+        $length = strlen($css);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $character = $css[$offset];
+            if ($character === '/' && ($css[$offset + 1] ?? '') === '*') {
+                $end = strpos($css, '*/', $offset + 2);
+                $offset = $end === false ? $length : $end + 1;
+            } elseif ($character === '"' || $character === "'") {
+                $end = strpos($css, $character, $offset + 1);
+                $value = substr($css, $offset + 1, ($end === false ? $length : $end) - $offset - 1);
+                if ($end === false || strpbrk($value, "\r\n\f") !== false) {
+                    $this->fail('CSS strings must close on the line where they start.');
+                }
+                $this->validateStylesheetString($value, $blocks);
+                $offset = $end;
+            } elseif (preg_match('/\G[a-zA-Z0-9_\x80-\xff-]+/', $css, $word, 0, $offset)) {
+                $offset += strlen($word[0]) - 1;
+                if (($css[$offset + 1] ?? '') !== '(') {
+                    continue;
+                }
+                $name = strtolower($word[0]);
+                if ($name === 'url' && preg_match('/\G\(\s*+(?=[^"\'])/', $css, $opening, 0, $offset + 1)) {
+                    $start = $offset + 1 + strlen($opening[0]);
+                    $end = strpos($css, ')', $start);
+                    $end = $end === false ? $length : $end;
+                    $this->validateStylesheetUrl(rtrim(substr($css, $start, $end - $start)));
+                    $offset = $end;
+
+                    continue;
+                }
+                $blocks[] = $name;
+                $offset++;
+            } elseif (in_array($character, ['(', '[', '{'], true)) {
+                $blocks[] = $character;
+            } elseif ($blocks && ($character === ']' || $character === '}') && end($blocks) === ($character === ']' ? '[' : '{')) {
+                array_pop($blocks);
+            } elseif ($blocks && $character === ')' && ! in_array(end($blocks), ['[', '{'], true)) {
+                array_pop($blocks);
+            }
+        }
+    }
+
+    /**
+     * A string is a URL inside url(), src(), image(), image-set() and
+     * cross-fade(). Elsewhere it may reach those functions through var(), so
+     * it cannot look like an external or data URL. Attribute selector values
+     * are compared with markup and are never fetched.
+     *
+     * @param  list<string>  $blocks
+     */
+    private function validateStylesheetString(string $value, array $blocks): void
+    {
+        foreach ($blocks as $block) {
+            if (in_array(preg_replace('/^-[a-z]+-/', '', $block), ['url', 'src', 'image', 'image-set', 'cross-fade'], true)) {
+                $this->validateStylesheetUrl($value);
+
+                return;
+            }
+        }
+        if (in_array('[', $blocks, true)) {
+            return;
+        }
+        $reference = strtolower(trim(str_replace(["\t", "\n", "\r"], '', $value), "\x00..\x20"));
+        if (preg_match('~^(?://|https?:|data:)~', $reference)) {
+            $this->fail('CSS URLs must reference local images/ or fonts/ assets.');
+        }
+    }
+
+    private function validateStylesheetUrl(string $url): void
+    {
+        $this->validatePath($url);
+        if (! preg_match('~^(?:images|fonts)/[A-Za-z0-9_/-]+\.(?:png|jpe?g|webp|woff2)$~D', $url)) {
+            $this->fail('CSS URLs must reference local images/ or fonts/ assets.');
         }
     }
 
@@ -450,7 +577,7 @@ final class ThemeManager
     {
         $configuration = \HTMLPurifier_Config::createDefault();
         $configuration->set('Cache.DefinitionImpl', null);
-        $configuration->set('HTML.Allowed', 'div[class|id],span[class],p[class],a[href|title|class],h1[class],h2[class],h3[class],h4[class],h5[class],h6[class],ul[class],ol[class],li[class],strong,em,b,i,u,br,hr,img[src|alt|width|height|class],blockquote[class],table[class],thead,tbody,tr,th,td,dl,dt,dd');
+        $configuration->set('HTML.Allowed', 'div[class],span[class],p[class],a[href|title|class],h1[class],h2[class],h3[class],h4[class],h5[class],h6[class],ul[class],ol[class],li[class],strong,em,b,i,u,br,hr,img[src|alt|width|height|class],blockquote[class],table[class],thead,tbody,tr,th,td,dl,dt,dd');
         $configuration->set('URI.AllowedSchemes', ['http' => true, 'https' => true, 'mailto' => true, 'tel' => true]);
         $purified = (new \HTMLPurifier($configuration))->purify($html);
         $document = new \DOMDocument;

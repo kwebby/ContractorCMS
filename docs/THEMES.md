@@ -88,7 +88,7 @@ Templates receive only primitive public data:
 
 There is no `page.id`, page collection, image-upload object, menu array, settings-record object, authenticated user or asset filesystem handle in this context. `assets.base` is a URL prefix, for example `/theme-assets/<theme-id>/assets`, without a trailing slash.
 
-Render `{{ page.content }}` exactly once. Render the contact widget at most once on ordinary pages. A managed-navigation template must render header and footer exactly once each. Place these slots in body content, never in an HTML attribute. The renderer replaces opaque tokens with application-owned HTML only after sanitizing the template.
+Render `{{ page.content }}` exactly once. Render the contact widget at most once on ordinary pages. The CMS checks these rules with the optional `site` fields and `page.excerpt` both filled and empty, so a slot must not depend on whether a business has, for example, a phone number. A managed-navigation template must render header and footer exactly once each. Place these slots in body content, never in an HTML attribute. The renderer replaces opaque tokens with application-owned HTML only after sanitizing the template.
 
 A guided homepage's content already contains its single H1 and any enabled contact section. When `page.guided_homepage` is true, the template must not add another H1 or render `widgets.contact`. The following works for both homepage modes:
 
@@ -114,9 +114,9 @@ Do not implement a replacement lead form in uploaded templates. HTML forms and e
 
 Available Twig tag: `if`. Filters: `escape`, `e`, `default`, `upper`, `lower`, `title`, `trim`. Raw filters, includes, loops, functions, object methods, framework services, database access and filesystem access are unsupported. Templates receive no private CRM, payroll, billing or credential records.
 
-Twig HTML autoescaping is enabled. A value like `{{ settings.tagline }}` is text, not an HTML fragment. Use `if`/`else`/`endif` for conditional layout. Template inheritance, macros, `include`, `for`, `set`, `raw`, `source`, range expressions and custom functions are unavailable. Split visual styles into CSS files if useful, but repeat a small template wrapper instead of trying to include another Twig file.
+Twig HTML autoescaping is enabled. A value like `{{ settings.tagline }}` is text, not an HTML fragment. Use `if`/`else`/`endif` for conditional layout. Template inheritance, macros, `include`, `for`, `set`, `raw`, `source`, range expressions and custom functions are unavailable. Inside `{{ }}` and `{% %}`, the names `include`, `source`, `range`, `random` and `constant` and the `..`, `**` and `matches` operators are rejected, including as variable or setting names. Ordinary page text and Twig comments, such as `<p>Our service range</p>` or `<p>Loading...</p>`, are unaffected. Split visual styles into CSS files if useful, but repeat a small template wrapper instead of trying to include another Twig file.
 
-Theme HTML passes through a restricted sanitizer. The allowed tags are `div`, `span`, `p`, `a`, `h1`–`h6`, `ul`, `ol`, `li`, `strong`, `em`, `b`, `i`, `u`, `br`, `hr`, `img`, `blockquote`, `table`, `thead`, `tbody`, `tr`, `th`, `td`, `dl`, `dt` and `dd`. Most layout tags allow `class`; `div` also allows `id`; links allow `href` and `title`; images allow `src`, `alt`, `width` and `height`. Other attributes and elements can be stripped or rejected. In particular, use `<div class="hero">` in ZIP templates rather than relying on `<section>`, `<main>`, `<header>` or `<footer>` surviving sanitization. Application-owned widgets can contain their own richer, trusted markup after slot insertion.
+Theme HTML passes through a restricted sanitizer. The allowed tags are `div`, `span`, `p`, `a`, `h1`–`h6`, `ul`, `ol`, `li`, `strong`, `em`, `b`, `i`, `u`, `br`, `hr`, `img`, `blockquote`, `table`, `thead`, `tbody`, `tr`, `th`, `td`, `dl`, `dt` and `dd`. Most layout tags allow `class`; links allow `href` and `title`; images allow `src`, `alt`, `width` and `height`. `id` attributes are removed so theme markup cannot collide with element IDs owned by the application; style by class instead. Other attributes and elements can be stripped or rejected. In particular, use `<div class="hero">` in ZIP templates rather than relying on `<section>`, `<main>`, `<header>` or `<footer>` surviving sanitization. Application-owned widgets can contain their own richer, trusted markup after slot insertion.
 
 ## Guided homepage content
 
@@ -202,7 +202,7 @@ From `assets/style.css`, use:
 }
 ```
 
-Relative CSS URLs must begin with `images/` or `fonts/`; use top-level `assets/*.css` when referencing these assets. Paths containing `..`, external origins, root-relative CSS URLs or CSS `@import` are rejected. The validator checks allowed URL syntax, but authors must also ensure every referenced file is included and loads in preview. WOFF2 is the only font file format. Include the full required font/asset license notices in the root `LICENSE.txt`; separate `.txt` files under `assets/fonts/` are not an allowed package path. Do not add Google Fonts embed scripts or remote CSS imports.
+Relative CSS URLs must begin with `images/` or `fonts/`; use top-level `assets/*.css` when referencing these assets. This applies to every `url()`, quoted or unquoted, and to strings inside `image-set()`, `image()`, `src()` and `cross-fade()`. Paths containing `..` or whitespace, external origins, root-relative CSS URLs, data URLs and CSS `@import` are rejected. Other CSS strings, including custom property values, cannot begin with `http:`, `https:`, `//` or `data:`; attribute selectors such as `a[href^="tel:"]` and text such as `content: "Call: "` are allowed. Close every CSS string on the line where it starts. The validator checks allowed URL syntax, but authors must also ensure every referenced file is included and loads in preview. WOFF2 is the only font file format. Include the full required font/asset license notices in the root `LICENSE.txt`; separate `.txt` files under `assets/fonts/` are not an allowed package path. Do not add Google Fonts embed scripts or remote CSS imports.
 
 Use a theme class prefix, such as `.contractorcms-starter`, to avoid unintended changes to platform widgets. The CMS includes its own public stylesheet, so test your selectors alongside the existing form, chat, header/footer and homepage styles. Avoid hiding headings, labels, consent text or error messages with CSS. Check visible keyboard focus, color contrast, zoom and narrow-screen wrapping.
 
@@ -287,10 +287,10 @@ Inspect the archive in your ZIP viewer before uploading. Do not select the enclo
 
 The theme library is at `/app/themes`; upload is at `/app/themes/upload`; settings are at `/app/themes/{id}/settings`. Access requires the `publishing.manage` permission. The update screens are dedicated pages.
 
-1. **Upload:** ContractorCMS inspects archive entries before extracting them into protected storage, validates files and exercises template contracts with default settings. Failed uploads are removed and do not change the active theme.
+1. **Upload:** ContractorCMS inspects archive entries before extracting them into protected storage, validates files and exercises template contracts with default settings and with optional public business fields both filled and empty. Failed uploads are removed and do not change the active theme.
 2. **Configure:** Set values on the theme's settings page. Settings are keyed by the uploaded theme ID. A new uploaded version starts with its schema defaults; saved settings are not automatically migrated between package IDs. Settings for an active theme take effect after saving and do not have a separate publication step.
 3. **Preview:** Open the authenticated preview for the inactive candidate. It is `noindex` and does not change the active pointer. This checks a representative page; use staging to verify all page types.
-4. **Activate:** The candidate is checked again, including compatibility with published guided homepages. Activation and publication share a transaction lock. The active pointer changes only after successful validation.
+4. **Activate:** The candidate is checked again with its saved settings, including compatibility with published guided homepages. If the active theme later fails while rendering a public page, that page falls back to the built-in theme and the failure is written to the application log. Activation and publication share a transaction lock. The active pointer changes only after successful validation.
 5. **Roll back:** Restore previous returns to the prior uploaded theme or the built-in theme. The mechanism tracks the current and previous selection, rather than a chronological rollback log. Existing installed versions stay available in the library.
 6. **Update:** Edit source outside the server, increment the manifest version, create a new ZIP and repeat. Do not edit immutable extracted package files.
 
@@ -331,6 +331,7 @@ There is no public theme marketplace, remote updater, package installer hook or 
 | Upload fails before CMS validation | Check PHP `upload_max_filesize`, `post_max_size`, web-server request limits and PHP ZIP extension; server limits can be below the CMS's 25 MiB cap |
 | New CSS is not visible | Upload a new theme package and activate its ID; confirm the expected CSS is listed in its manifest |
 | Global colors/fonts do not affect custom areas | Use the emitted `--website-*` variables instead of fixed custom values; the CMS cannot reinterpret arbitrary CSS |
+| Public pages use the built-in theme unexpectedly | The active theme failed while rendering; check the application log, fix the package and upload a new version |
 | Rollback unavailable | There is no prior selection recorded yet, or the previous package is incompatible with the currently published guided homepage |
 
 For application bugs, include the ContractorCMS revision, theme manifest/API version, browser/server versions and the validation message. Share a minimal theme without business data or credentials.
