@@ -1,0 +1,55 @@
+/* Author: ramanpal singh | URL: https://kwebby.com */
+.contractorcms-starter {
+  background: var(--website-background, #f7f6f0);
+  color: var(--website-text, #243b32);
+  font-family: var(--website-body-font, sans-serif);
+}
+.contractorcms-starter .starter-container {
+  width: calc(100% - 40px);
+  max-width: var(--website-width, 1200px);
+  margin: 0 auto;
+}
+.contractorcms-starter .starter-intro {
+  padding: var(--website-spacing, 64px) 0;
+}
+.contractorcms-starter .starter-tone-soft {
+  background: var(--website-surface, #ffffff);
+}
+.contractorcms-starter .starter-eyebrow {
+  color: var(--theme-accent, var(--website-primary, #27483d));
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.contractorcms-starter .starter-intro h1 {
+  max-width: 20ch;
+  margin: 16px 0;
+  font-family: var(--website-heading-font, sans-serif);
+  font-size: clamp(32px, 5vw, 64px);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+.contractorcms-starter .starter-excerpt {
+  max-width: 65ch;
+  font-size: 18px;
+  line-height: 1.7;
+}
+.contractorcms-starter .starter-content {
+  padding-top: 32px;
+  padding-bottom: var(--website-spacing, 64px);
+  line-height: 1.75;
+}
+.contractorcms-starter .starter-content img {
+  max-width: 100%;
+  height: auto;
+}
+.contractorcms-starter .contact-section h2 {
+  color: var(--theme-accent, var(--website-primary, #27483d));
+}
+@media (max-width: 640px) {
+  .contractorcms-starter .starter-container {
+    width: calc(100% - 32px);
+  }
+}

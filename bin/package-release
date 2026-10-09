@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Author: ramanpal singh
+# URL: https://kwebby.com
+
+set -euo pipefail
+cd "$(dirname "$0")/.."
+if [[ "$*" != "--reuse-assets" ]]; then
+    npm ci
+    npm run typecheck
+    npm run build
+fi
+composer validate --strict
+test -f public/build/manifest.json
+release_stage="$(mktemp -d)"
+trap 'rm -rf "$release_stage"' EXIT
+mkdir -p "$release_stage/app"
+rsync -a app bootstrap config database public resources routes docs deploy artisan composer.json composer.lock .env.example README.md CHANGELOG.md SECURITY.md LICENSE THIRD_PARTY_NOTICES.md "$release_stage/app/" --exclude=database.sqlite --exclude='*.sqlite-*' --exclude=cache/
+mkdir -p "$release_stage/app/bootstrap/cache" "$release_stage/app/storage/app/private" "$release_stage/app/storage/framework/cache/data" "$release_stage/app/storage/framework/sessions" "$release_stage/app/storage/framework/views" "$release_stage/app/storage/logs"
+composer install --working-dir="$release_stage/app" --no-dev --prefer-dist --optimize-autoloader --no-interaction
+mkdir -p dist
+tar -czf "dist/contractor-cms-$(date -u +%Y%m%d%H%M%S).tar.gz" -C "$release_stage/app" .
+printf 'Release package written to dist/ (no .env, private files, or development database included).\n'

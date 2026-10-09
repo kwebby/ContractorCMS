@@ -1,0 +1,53 @@
+# Author: ramanpal singh
+# URL: https://kwebby.com
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+    ports: ["127.0.0.1:8080:80"]
+    env_file: .env
+    environment:
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_CONNECTION: pgsql
+      DATA_PROVIDER: postgres
+    volumes: ["cms-storage:/var/www/html/storage"]
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: unless-stopped
+  scheduler:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+    user: www-data
+    env_file: .env
+    environment:
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_CONNECTION: pgsql
+      DATA_PROVIDER: postgres
+    volumes: ["cms-storage:/var/www/html/storage"]
+    command: ["php", "artisan", "schedule:work"]
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: unless-stopped
+  database:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-contractor_cms}
+      POSTGRES_USER: ${DB_USERNAME:-contractor_cms}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes: ["cms-database:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+volumes:
+  cms-storage:
+  cms-database:

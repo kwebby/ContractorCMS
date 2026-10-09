@@ -1,0 +1,16 @@
+# Author: ramanpal singh
+# URL: https://kwebby.com
+
+.git
+.env
+.env.*
+!.env.example
+node_modules
+vendor
+storage
+bootstrap/cache/*.php
+database/*.sqlite
+reports
+dist
+test-results
+playwright-report

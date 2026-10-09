@@ -1,0 +1,589 @@
+/**
+ * Author: ramanpal singh
+ * URL: https://kwebby.com
+ */
+.website-workspace {
+    --website-line: #e5e8ed;
+    --website-muted: #718096;
+}
+.website-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    border-bottom: 1px solid var(--website-line);
+    margin-bottom: 24px;
+}
+.website-nav a {
+    padding: 13px 16px;
+    color: #5d6c7f;
+    text-decoration: none;
+    font-size: 12px;
+    border-bottom: 2px solid transparent;
+}
+.website-nav a[aria-current="page"] {
+    border-color: #386bbe;
+    color: #285898;
+    font-weight: 650;
+}
+.website-nav a:hover {
+    background: #f1f5fa;
+}
+.website-fieldset {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+}
+.website-fieldset:disabled {
+    opacity: 0.7;
+}
+.website-action-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 18px 0;
+}
+.website-action-bar > div,
+.website-editor-title > div:last-child,
+.website-row-actions {
+    display: flex;
+    gap: 9px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.website-save-state {
+    font-size: 12px;
+    color: #65768c;
+}
+.website-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 22px;
+}
+.website-padding {
+    padding: 25px;
+}
+.website-padding > h2,
+.website-group h2,
+.website-section-editor h2,
+.website-revisions h2 {
+    font-size: 16px;
+    font-weight: 650;
+    margin: 0 0 12px;
+}
+.website-group + .website-group {
+    border-top: 1px solid var(--website-line);
+    margin-top: 26px;
+    padding-top: 26px;
+}
+.website-group > header {
+    margin-bottom: 20px;
+}
+.website-group > header p,
+.website-help,
+.website-section-list header p {
+    color: var(--website-muted);
+    font-size: 12px;
+    line-height: 1.7;
+}
+.website-group > header h2 {
+    margin-bottom: 5px;
+}
+.website-editor-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+.website-editor-title h2 {
+    margin-bottom: 0;
+}
+.website-editor-title .button {
+    font-size: 11px;
+}
+.website-editor-options {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 22px;
+    max-width: 850px;
+}
+.website-preset-bar {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    background: #edf2f7;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 22px;
+}
+.website-preset-bar .field {
+    margin: 0;
+    min-width: 170px;
+}
+.website-preset-bar small {
+    color: var(--website-muted);
+    font-size: 11px;
+    line-height: 1.6;
+    max-width: 260px;
+}
+.website-home-editor {
+    display: grid;
+    grid-template-columns: 275px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+.website-section-list {
+    border: 1px solid var(--website-line);
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.website-section-list > header {
+    padding: 18px;
+}
+.website-section-list h2 {
+    display: flex;
+    justify-content: space-between;
+    margin: 0;
+    font-size: 14px;
+}
+.website-section-list h2 small {
+    font-size: 11px;
+    color: var(--website-muted);
+    font-weight: 400;
+}
+.website-section-list header p {
+    font-size: 10px;
+    margin: 6px 0 0;
+}
+.website-section-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 8px;
+    border-top: 1px solid #edf0f4;
+}
+.website-section-row.selected {
+    background: #eef4fd;
+    box-shadow: inset 3px 0 #4479c4;
+}
+.website-section-row > svg {
+    color: #98a4b3;
+    flex-shrink: 0;
+}
+.website-section-select {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    text-align: left;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+    color: #33465e;
+}
+.website-section-select strong {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    font-weight: 550;
+}
+.website-section-select small {
+    display: block;
+    font-size: 10px;
+    margin-top: 5px;
+    color: var(--website-muted);
+}
+.website-order-buttons {
+    display: grid;
+    gap: 3px;
+}
+.website-order-buttons button {
+    display: flex;
+    border: 0;
+    background: none;
+    padding: 2px;
+    color: #637893;
+    cursor: pointer;
+}
+.website-order-buttons button:disabled {
+    opacity: 0.25;
+    cursor: default;
+}
+.website-add-section {
+    padding: 18px;
+    border-top: 1px solid var(--website-line);
+}
+.website-add-section .button {
+    width: 100%;
+}
+.website-section-editor {
+    padding: 24px;
+    min-width: 0;
+}
+.website-eyebrow {
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--website-muted);
+    margin-bottom: 7px;
+}
+.website-writing {
+    margin: 20px 0;
+}
+.website-writing > label {
+    display: block;
+    font-size: 12px;
+    font-weight: 550;
+    margin-bottom: 8px;
+    color: #4b607a;
+}
+.website-writing .writer {
+    border: 1px solid var(--website-line);
+    border-radius: 6px;
+    min-height: 120px;
+}
+.website-writing .bn-editor {
+    padding: 20px 35px;
+}
+.website-disclosure {
+    border: 1px solid var(--website-line);
+    border-radius: 6px;
+    margin: 16px 0;
+    padding: 13px 16px;
+}
+.website-disclosure summary {
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 550;
+    color: #4b607a;
+}
+.website-disclosure[open] summary {
+    margin-bottom: 18px;
+}
+.website-image-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 18px;
+    gap: 8px;
+}
+.website-image-preview img {
+    width: 100%;
+    max-width: 360px;
+    aspect-ratio: 16/9;
+    object-fit: cover;
+    border-radius: 6px;
+    background: #eef0f4;
+}
+.website-repeater {
+    border: 1px solid var(--website-line);
+    border-radius: 6px;
+    padding: 18px;
+    margin: 16px 0;
+    background: #fafbfc;
+}
+.website-repeater > header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    font-size: 12px;
+}
+.website-repeater > header > div {
+    display: flex;
+}
+.website-revisions {
+    margin-top: 26px;
+    padding: 22px;
+}
+.website-revisions > div:first-child {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.website-conflict {
+    border: 1px solid #eac9b6;
+    background: #fff7ed;
+    padding: 18px;
+    margin: 18px 0;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+    font-size: 12px;
+}
+.website-field-errors {
+    color: #a34840;
+    font-size: 12px;
+    line-height: 1.7;
+}
+.website-color-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+}
+.website-color-field > span {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+.website-color-field > div {
+    display: flex;
+    border: 1px solid var(--website-line);
+    border-radius: 6px;
+    padding: 6px;
+    gap: 8px;
+}
+.website-color-field input[type="color"] {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    background: none;
+    flex-shrink: 0;
+}
+.website-color-field input:not([type="color"]) {
+    min-width: 0;
+    width: 100%;
+    border: 0;
+    outline: none;
+    font-family: monospace;
+    font-size: 12px;
+    background: transparent;
+}
+.website-font-library {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+}
+.website-font-preview {
+    padding: 18px;
+    border: 1px solid var(--website-line);
+    border-radius: 6px;
+}
+.website-font-preview header {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+.website-font-preview small,
+.website-font-preview a {
+    font-size: 10px;
+    color: var(--website-muted);
+}
+.website-font-preview p {
+    font-size: 21px;
+    line-height: 1.5;
+    margin: 18px 0;
+}
+.website-font-preview > div {
+    display: flex;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+.website-font-preview .button {
+    padding: 8px;
+    font-size: 10px;
+}
+.website-hours-row {
+    display: grid;
+    grid-template-columns: 130px 1fr 1fr 150px;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #edf0f4;
+}
+.website-hours-row .field,
+.website-hours-row .check-field {
+    margin: 0;
+}
+.website-hours-row .field > span {
+    font-size: 10px;
+}
+.website-hours-row small {
+    color: var(--website-muted);
+    font-size: 11px;
+}
+.website-local-nav {
+    display: flex;
+    gap: 22px;
+    margin: 8px 0 24px;
+    flex-wrap: wrap;
+}
+.website-local-nav a {
+    font-size: 12px;
+    color: #376294;
+}
+.website-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 20px;
+    border-bottom: 1px solid var(--website-line);
+    margin-bottom: 25px;
+    padding: 0 0 24px;
+}
+.website-metrics span {
+    color: var(--website-muted);
+    font-size: 11px;
+    display: block;
+}
+.website-metrics strong {
+    display: block;
+    font-size: 26px;
+    font-weight: 550;
+    margin-top: 10px;
+    color: #34465c;
+}
+.website-nap {
+    display: grid;
+    gap: 7px;
+    font-size: 13px;
+    line-height: 1.7;
+}
+.website-checklist {
+    padding-left: 18px;
+    font-size: 12px;
+    line-height: 1.9;
+    color: #50637b;
+}
+.website-diagnostics,
+.website-coverage {
+    margin-top: 24px;
+}
+.website-coverage-row {
+    border-top: 1px solid var(--website-line);
+    padding: 20px 0;
+}
+.website-coverage-row > header {
+    display: flex;
+    justify-content: space-between;
+    gap: 25px;
+}
+.website-coverage-row h3 {
+    margin: 0 0 8px;
+    font-size: 13px;
+}
+.website-coverage-row p {
+    color: var(--website-muted);
+    font-size: 12px;
+    margin: 0;
+    line-height: 1.7;
+}
+.website-coverage-row header > div:last-child {
+    display: flex;
+    flex-shrink: 0;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--website-muted);
+}
+.website-coverage-row ul {
+    padding-left: 18px;
+    font-size: 12px;
+}
+.website-coverage-row li {
+    margin-top: 9px;
+}
+.website-coverage-row li span {
+    color: var(--website-muted);
+    margin-left: 10px;
+    font-size: 10px;
+}
+.website-citation-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 110px 110px auto;
+    gap: 20px;
+    align-items: center;
+    border-top: 1px solid var(--website-line);
+    padding: 18px 0;
+    font-size: 12px;
+}
+.website-citation-row > div {
+    display: grid;
+    gap: 7px;
+}
+.website-citation-row small {
+    color: var(--website-muted);
+    font-size: 10px;
+}
+.website-citation-row a {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.website-citation-editor {
+    margin-bottom: 24px;
+}
+.website-comparison {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 12px;
+    margin: 20px 0;
+}
+@media (max-width: 1100px) {
+    .website-home-editor {
+        grid-template-columns: 230px minmax(0, 1fr);
+        gap: 16px;
+    }
+    .website-editor-title {
+        flex-wrap: wrap;
+    }
+    .website-hours-row {
+        grid-template-columns: 120px 1fr 1fr;
+    }
+    .website-hours-row .check-field:last-child {
+        grid-column: 2 / 4;
+    }
+}
+@media (max-width: 800px) {
+    .website-home-editor,
+    .website-grid,
+    .website-font-library,
+    .website-editor-options {
+        grid-template-columns: 1fr;
+    }
+    .website-action-bar,
+    .website-preset-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .website-nav a {
+        padding: 10px;
+        font-size: 11px;
+    }
+    .website-color-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .website-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .website-coverage-row > header {
+        flex-direction: column;
+        gap: 10px;
+    }
+    .website-citation-row {
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+    }
+    .website-padding,
+    .website-section-editor {
+        padding: 18px;
+    }
+    .website-hours-row {
+        grid-template-columns: 1fr 1fr;
+    }
+    .website-hours-row > .check-field:first-child {
+        grid-column: 1 / 3;
+    }
+    .website-hours-row .check-field:last-child {
+        grid-column: 1 / 3;
+    }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "ContractorCMS Starter",
+  "version": "1.0.0",
+  "api_version": 1,
+  "templates": {
+    "page": "templates/page.twig",
+    "home": "templates/home.twig"
+  },
+  "assets": ["assets/style.css"],
+  "widgets": ["contact", "header", "footer"],
+  "capabilities": ["guided-homepage", "managed-navigation"]
+}

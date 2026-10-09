@@ -1,0 +1,78 @@
+{
+  "id": "alair",
+  "name": "Alair Vancouver",
+  "trade": "General / custom homes",
+  "city": "Vancouver, BC",
+  "country": "Canada",
+  "homepage": "https://alairhomes.com/vancouver/",
+  "accessed_at_utc": "2026-10-09T13:12:38.574650+00:00",
+  "http": {
+    "url": "https://alairhomes.com/vancouver/",
+    "final_url": "https://alairhomes.com/vancouver/",
+    "status": 403,
+    "type": "text/html; charset=UTF-8"
+  },
+  "html_sha256": "ed32ba749f6914c1d7c091e0ec03d98e05810cebdb4b3166833a1c254fd157d7",
+  "canonical": [],
+  "phones": [],
+  "count_scope": "/vancouver/",
+  "robots_source": {
+    "url": "https://alairhomes.com/robots.txt",
+    "final_url": "https://alairhomes.com/robots.txt",
+    "status": 403,
+    "type": "text/html; charset=UTF-8"
+  },
+  "homepage_unique_page_links": [
+    "https://alairhomes.com/vancouver/"
+  ],
+  "sitemaps": [
+    {
+      "url": "https://alairhomes.com/sitemap.xml",
+      "final_url": "https://alairhomes.com/sitemap.xml",
+      "status": 403,
+      "type": "text/html; charset=UTF-8",
+      "parse_result": "not XML sitemap"
+    },
+    {
+      "url": "https://alairhomes.com/sitemap_index.xml",
+      "final_url": "https://alairhomes.com/sitemap_index.xml",
+      "status": 403,
+      "type": "text/html; charset=UTF-8",
+      "parse_result": "not XML sitemap"
+    },
+    {
+      "url": "https://alairhomes.com/wp-sitemap.xml",
+      "final_url": "https://alairhomes.com/wp-sitemap.xml",
+      "status": 403,
+      "type": "text/html; charset=UTF-8",
+      "parse_result": "not XML sitemap"
+    }
+  ],
+  "sitemap_capped": false,
+  "failed_sitemap_children": [],
+  "sitemap_inventory_partial": true,
+  "sitemap_advertised_page_urls": [],
+  "page_count": 6,
+  "page_count_method": "M: manually deduplicated bounded subset of links in official homepage web extraction, including homepage. Lower bound, not complete navigation inventory or site total; not all linked targets confirmed reachable.",
+  "count_urls": [
+    "https://alairhomes.com/vancouver/",
+    "https://alairhomes.com/vancouver/awards/",
+    "https://alairhomes.com/vancouver/contact/",
+    "https://alairhomes.com/vancouver/laneway-homes-in-vancouver/",
+    "https://alairhomes.com/vancouver/meet-the-team/",
+    "https://alairhomes.com/vancouver/projects/"
+  ],
+  "manual_inventory_checked_date": "2026-10-09",
+  "web_fallback_used": true,
+  "web_fallback_sources": [
+    "https://alairhomes.com/vancouver/",
+    "https://alairhomes.com/vancouver/contact/",
+    "https://alairhomes.com/vancouver/meet-the-team/"
+  ],
+  "nap_cross_platform_status": "not_verified",
+  "non_home_page_count": 5,
+  "non_home_page_count_method": "Counted inventory excluding normalized sampled homepage and confirmed successful final homepage redirect URL; do not subtract 1 when sitemap omits the homepage.",
+  "non_home_excluded_identities": [
+    "https://alairhomes.com/vancouver/"
+  ]
+}

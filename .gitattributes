@@ -1,0 +1,13 @@
+* text=auto eol=lf
+
+*.blade.php diff=html
+*.css diff=css
+*.html diff=html
+*.md diff=markdown
+*.php diff=php
+
+/.github export-ignore
+.styleci.yml export-ignore
+
+# Preserve upstream font license bytes and their documented hashes.
+public/assets/website-fonts/*/OFL.txt -whitespace

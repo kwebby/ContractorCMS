@@ -1,0 +1,73 @@
+# Author: ramanpal singh
+# URL: https://kwebby.com
+
+name: ContractorCMS checks
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+jobs:
+  sql:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        database: [pgsql, mysql]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: cms_test
+          POSTGRES_USER: cms
+          POSTGRES_PASSWORD: test-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U cms -d cms_test"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: cms_test
+          MYSQL_USER: cms
+          MYSQL_PASSWORD: test-only
+          MYSQL_ROOT_PASSWORD: test-root-only
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ptest-root-only"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: pdo_pgsql,pdo_mysql,mbstring,xml,curl,zip,gd,intl,bcmath,sodium
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci && npm run build
+      - run: cp .env.example .env && php artisan key:generate
+      - run: php artisan test --compact
+        env:
+          DB_CONNECTION: ${{ matrix.database }}
+          DB_HOST: 127.0.0.1
+          DB_PORT: ${{ matrix.database == 'pgsql' && '5432' || '3306' }}
+          DB_DATABASE: cms_test
+          DB_USERNAME: cms
+          DB_PASSWORD: test-only
+          DATA_PROVIDER: ${{ matrix.database == 'pgsql' && 'postgres' || 'mysql' }}
+      - run: composer audit
+  frontend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck && npm test && npm run build
+      - run: npm audit --omit=dev --audit-level=high

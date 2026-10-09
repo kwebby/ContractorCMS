@@ -1,0 +1,6 @@
+/**
+ * Author: ramanpal singh
+ * URL: https://kwebby.com
+ */
+
+*{box-sizing:border-box}body{margin:0;background:#f3f6fa;color:#17293e;font:16px/1.6 system-ui,sans-serif;display:grid;place-items:center;min-height:100vh}main{width:min(440px,92vw);padding:42px;background:white;border:1px solid #dbe3ee;border-radius:12px}.brand{font-weight:750;font-size:21px;color:#174d82;text-decoration:none}h1{font-size:26px;line-height:1.25;margin-top:30px}label{display:block;font-size:14px;font-weight:600;margin:20px 0}input{width:100%;padding:12px;border:1px solid #becbd8;border-radius:6px;display:block;margin-top:7px;font:inherit}button{width:100%;padding:12px;background:#195bb0;color:white;border:0;border-radius:6px;font:inherit;cursor:pointer}.back{display:block;margin-top:24px;font-size:14px;color:#405e7d}.success{color:#226648}.error{color:#ad2435}code{overflow-wrap:anywhere}input:focus-visible,button:focus-visible{outline:3px solid #7eb3ed;outline-offset:2px}

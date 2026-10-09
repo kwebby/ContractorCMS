@@ -1,0 +1,5 @@
+# Author: ramanpal singh
+# URL: https://kwebby.com
+
+# Change paths for your host. Run as the application owner.
+* * * * * cd /home/account/contractor-cms && /usr/bin/php artisan schedule:run >> storage/logs/scheduler.log 2>&1

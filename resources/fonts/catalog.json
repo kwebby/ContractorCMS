@@ -1,0 +1,263 @@
+{
+  "author": "ramanpal singh",
+  "url": "https://kwebby.com",
+  "captured_at": "2026-10-09",
+  "families": [
+    {
+      "id": "inter",
+      "name": "Inter",
+      "family": "Inter",
+      "category": "sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "stylesheet": "/assets/website-fonts.css",
+      "license_url": "/assets/website-fonts/inter/OFL.txt",
+      "license_source": "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/OFL.txt",
+      "source": "https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap",
+      "files": [
+        {
+          "path": "/assets/website-fonts/inter/latin-ext.woff2",
+          "source": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2",
+          "sha256": "34b9c504cab7a73e37b746343a449132e56cf7b5481af2cb81dc74dcff25c956",
+          "bytes": 85068,
+          "subset": "latin-ext"
+        },
+        {
+          "path": "/assets/website-fonts/inter/latin.woff2",
+          "source": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+          "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
+          "bytes": 48256,
+          "subset": "latin"
+        }
+      ]
+    },
+    {
+      "id": "manrope",
+      "name": "Manrope",
+      "family": "Manrope",
+      "category": "sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "stylesheet": "/assets/website-fonts.css",
+      "license_url": "/assets/website-fonts/manrope/OFL.txt",
+      "license_source": "https://raw.githubusercontent.com/google/fonts/main/ofl/manrope/OFL.txt",
+      "source": "https://fonts.googleapis.com/css2?family=Manrope:wght@400..700&display=swap",
+      "files": [
+        {
+          "path": "/assets/website-fonts/manrope/latin-ext.woff2",
+          "source": "https://fonts.gstatic.com/s/manrope/v20/xn7gYHE41ni1AdIRggmxSuXd.woff2",
+          "sha256": "3911b66d9f2e005a4b989223405d0e5032619c668597ba467cc76a23c8fffcfb",
+          "bytes": 15120,
+          "subset": "latin-ext"
+        },
+        {
+          "path": "/assets/website-fonts/manrope/latin.woff2",
+          "source": "https://fonts.gstatic.com/s/manrope/v20/xn7gYHE41ni1AdIRggexSg.woff2",
+          "sha256": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+          "bytes": 24836,
+          "subset": "latin"
+        }
+      ]
+    },
+    {
+      "id": "montserrat",
+      "name": "Montserrat",
+      "family": "Montserrat",
+      "category": "sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "stylesheet": "/assets/website-fonts.css",
+      "license_url": "/assets/website-fonts/montserrat/OFL.txt",
+      "license_source": "https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/OFL.txt",
+      "source": "https://fonts.googleapis.com/css2?family=Montserrat:wght@400..700&display=swap",
+      "files": [
+        {
+          "path": "/assets/website-fonts/montserrat/latin-ext.woff2",
+          "source": "https://fonts.gstatic.com/s/montserrat/v31/JTUSjIg1_i6t8kCHKm459Wdhyzbi.woff2",
+          "sha256": "54d9a78b7ff60b689ad9f3017ffac8547b5d871afec733f6c1c3ae36577ee504",
+          "bytes": 70688,
+          "subset": "latin-ext"
+        },
+        {
+          "path": "/assets/website-fonts/montserrat/latin.woff2",
+          "source": "https://fonts.gstatic.com/s/montserrat/v31/JTUSjIg1_i6t8kCHKm459Wlhyw.woff2",
+          "sha256": "06b16db7a969135d48d38c49183be7fb88d4452e2a3011957c7851941f4e4879",
+          "bytes": 37956,
+          "subset": "latin"
+        }
+      ]
+    },
+    {
+      "id": "source-sans-3",
+      "name": "Source Sans 3",
+      "family": "Source Sans 3",
+      "category": "sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "stylesheet": "/assets/website-fonts.css",
+      "license_url": "/assets/website-fonts/source-sans-3/OFL.txt",
+      "license_source": "https://raw.githubusercontent.com/google/fonts/main/ofl/sourcesans3/OFL.txt",
+      "source": "https://fonts.googleapis.com/css2?family=Source%20Sans%203:wght@400..700&display=swap",
+      "files": [
+        {
+          "path": "/assets/website-fonts/source-sans-3/latin-ext.woff2",
+          "source": "https://fonts.gstatic.com/s/sourcesans3/v20/nwpStKy2OAdR1K-IwhWudF-R3wEaZfrc.woff2",
+          "sha256": "a85a7459bdb3cdc1136751e151a506bae653fc29ada3ca86237477df6f1b59e6",
+          "bytes": 60088,
+          "subset": "latin-ext"
+        },
+        {
+          "path": "/assets/website-fonts/source-sans-3/latin.woff2",
+          "source": "https://fonts.gstatic.com/s/sourcesans3/v20/nwpStKy2OAdR1K-IwhWudF-R3w8aZQ.woff2",
+          "sha256": "19143dca075972bc84e3fd9eab7416dd40cc565dccb2435a044bdfabe060c7d5",
+          "bytes": 28872,
+          "subset": "latin"
+        }
+      ]
+    },
+    {
+      "id": "open-sans",
+      "name": "Open Sans",
+      "family": "Open Sans",
+      "category": "sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "stylesheet": "/assets/website-fonts.css",
+      "license_url": "/assets/website-fonts/open-sans/OFL.txt",
+      "license_source": "https://raw.githubusercontent.com/google/fonts/main/ofl/opensans/OFL.txt",
+      "source": "https://fonts.googleapis.com/css2?family=Open%20Sans:wght@400..700&display=swap",
+      "files": [
+        {
+          "path": "/assets/website-fonts/open-sans/latin-ext.woff2",
+          "source": "https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSGmu1aB.woff2",
+          "sha256": "d5bab8e28732fe3d10dcef4f77b9c248605bbb2a87d289a2539251ceafab536a",
+          "bytes": 35156,
+          "subset": "latin-ext"
+        },
+        {
+          "path": "/assets/website-fonts/open-sans/latin.woff2",
+          "source": "https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTS-muw.woff2",
+          "sha256": "d8e4fe0452aa2076429a9bb5d8757d00a994dd95986cf950e9a1a371b9a072a0",
+          "bytes": 48320,
+          "subset": "latin"
+        }
+      ]
+    },
+    {
+      "id": "work-sans",
+      "name": "Work Sans",
+      "family": "Work Sans",
+      "category": "sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "stylesheet": "/assets/website-fonts.css",
+      "license_url": "/assets/website-fonts/work-sans/OFL.txt",
+      "license_source": "https://raw.githubusercontent.com/google/fonts/main/ofl/worksans/OFL.txt",
+      "source": "https://fonts.googleapis.com/css2?family=Work%20Sans:wght@400..700&display=swap",
+      "files": [
+        {
+          "path": "/assets/website-fonts/work-sans/latin-ext.woff2",
+          "source": "https://fonts.gstatic.com/s/worksans/v24/QGYsz_wNahGAdqQ43Rh_cqDpp_k.woff2",
+          "sha256": "2aa17fc7b072e46652e84bbe3dbba9ec57cdea320d89e8c951ed7cf3218c300b",
+          "bytes": 35716,
+          "subset": "latin-ext"
+        },
+        {
+          "path": "/assets/website-fonts/work-sans/latin.woff2",
+          "source": "https://fonts.gstatic.com/s/worksans/v24/QGYsz_wNahGAdqQ43Rh_fKDp.woff2",
+          "sha256": "1dd49afc07fb2231b2ff686cbf007725fb2742271bb1f28ebd98f22a0d817343",
+          "bytes": 50316,
+          "subset": "latin"
+        }
+      ]
+    },
+    {
+      "id": "lora",
+      "name": "Lora",
+      "family": "Lora",
+      "category": "serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "stylesheet": "/assets/website-fonts.css",
+      "license_url": "/assets/website-fonts/lora/OFL.txt",
+      "license_source": "https://raw.githubusercontent.com/google/fonts/main/ofl/lora/OFL.txt",
+      "source": "https://fonts.googleapis.com/css2?family=Lora:wght@400..700&display=swap",
+      "files": [
+        {
+          "path": "/assets/website-fonts/lora/latin-ext.woff2",
+          "source": "https://fonts.gstatic.com/s/lora/v37/0QIvMX1D_JOuMwT7I-NP.woff2",
+          "sha256": "2a2d9c22c9863086a23f5013fede1428585321812b25f2662542c39d02967c5e",
+          "bytes": 20088,
+          "subset": "latin-ext"
+        },
+        {
+          "path": "/assets/website-fonts/lora/latin.woff2",
+          "source": "https://fonts.gstatic.com/s/lora/v37/0QIvMX1D_JOuMwr7Iw.woff2",
+          "sha256": "ddb8c66035104e233fc024669183aad3738b6daa16deee2ebb1241bd0f98ace1",
+          "bytes": 37788,
+          "subset": "latin"
+        }
+      ]
+    },
+    {
+      "id": "merriweather",
+      "name": "Merriweather",
+      "family": "Merriweather",
+      "category": "serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "stylesheet": "/assets/website-fonts.css",
+      "license_url": "/assets/website-fonts/merriweather/OFL.txt",
+      "license_source": "https://raw.githubusercontent.com/google/fonts/main/ofl/merriweather/OFL.txt",
+      "source": "https://fonts.googleapis.com/css2?family=Merriweather:wght@400..700&display=swap",
+      "files": [
+        {
+          "path": "/assets/website-fonts/merriweather/latin-ext.woff2",
+          "source": "https://fonts.gstatic.com/s/merriweather/v33/u-4e0qyriQwlOrhSvowK_l5UcA6zuSYEqOzpPe3HOZJ5eX1WtLaQwmYiSeqkJ-mFqA.woff2",
+          "sha256": "8ca0880997847953a13964d6769b6712c57aa2dc2f881f4e6e805719791daed8",
+          "bytes": 74960,
+          "subset": "latin-ext"
+        },
+        {
+          "path": "/assets/website-fonts/merriweather/latin.woff2",
+          "source": "https://fonts.gstatic.com/s/merriweather/v33/u-4e0qyriQwlOrhSvowK_l5UcA6zuSYEqOzpPe3HOZJ5eX1WtLaQwmYiSeqqJ-k.woff2",
+          "sha256": "4fbe8dd9c23b1fd62a988bb8a69b8e692d810f773d9ef6ebca2ba2760c7b11ee",
+          "bytes": 97548,
+          "subset": "latin"
+        }
+      ]
+    }
+  ]
+}

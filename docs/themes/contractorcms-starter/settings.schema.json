@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "title": "ContractorCMS Starter settings",
+  "additionalProperties": false,
+  "properties": {
+    "accent": {
+      "type": "string",
+      "title": "Accent color",
+      "description": "Color for the heading accent and the service-request heading.",
+      "format": "color",
+      "default": "#27483d"
+    },
+    "tagline": {
+      "type": "string",
+      "title": "Introductory label",
+      "description": "Small label above the title on ordinary pages and expert homepages.",
+      "default": "Local expertise. Personal service.",
+      "maxLength": 100
+    },
+    "show_tagline": {
+      "type": "boolean",
+      "title": "Show introductory label",
+      "default": true
+    },
+    "tone": {
+      "type": "string",
+      "title": "Heading background",
+      "enum": ["plain", "soft"],
+      "default": "soft"
+    }
+  },
+  "required": ["accent", "tagline", "show_tagline", "tone"]
+}
