@@ -9,8 +9,8 @@ use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\WorkforceController;
 use Illuminate\Support\Facades\Route;
 
-Route::post('/api/v1/payments/webhooks/stripe', [FinanceController::class, 'stripeWebhook'])->name('payments.stripe.webhook');
-Route::post('/api/v1/payments/webhooks/paypal', [FinanceController::class, 'paypalWebhook'])->name('payments.paypal.webhook');
+Route::post('/api/v1/payments/webhooks/stripe', [FinanceController::class, 'stripeWebhook'])->middleware('throttle:120,1')->name('payments.stripe.webhook');
+Route::post('/api/v1/payments/webhooks/paypal', [FinanceController::class, 'paypalWebhook'])->middleware('throttle:120,1')->name('payments.paypal.webhook');
 
 Route::middleware('auth')->prefix('api/v1')->group(function () {
     Route::get('estimates', [FinanceController::class, 'estimates']);

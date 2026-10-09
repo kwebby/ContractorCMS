@@ -130,7 +130,7 @@ class FinanceService
 
     public function balance(array $invoice): array
     {
-        $paid = $refunded = $reversed = $credit = $disputed = 0;
+        $paid = $refunded = $pendingRefunds = $reversed = $credit = $disputed = 0;
         foreach ($this->records->all('payments', ['invoice_id' => $invoice['id']]) as $payment) {
             if (($payment['status'] ?? null) === 'settled') {
                 $paid += $payment['amount_minor'];
@@ -139,6 +139,8 @@ class FinanceService
         foreach ($this->records->all('refunds', ['invoice_id' => $invoice['id']]) as $refund) {
             if (($refund['status'] ?? null) === 'settled') {
                 $refunded += $refund['amount_minor'];
+            } elseif (($refund['status'] ?? null) === 'pending') {
+                $pendingRefunds += $refund['amount_minor'];
             }
         }
         foreach ($this->records->all('reversals', ['invoice_id' => $invoice['id']]) as $reversal) {
@@ -157,7 +159,7 @@ class FinanceService
         $due = max(0, $invoice['total_minor'] - $credit);
         $balance = max(0, $due - $net);
 
-        return array_merge($invoice, ['paid_minor' => $net, 'transferred_credit_minor' => $transferred, 'refunded_minor' => $refunded, 'credit_minor' => $credit, 'disputed_minor' => $disputed, 'balance_minor' => $balance, 'overpayment_minor' => max(0, $net - $due), 'payment_status' => $balance === 0 ? 'paid' : ($net > 0 ? 'partially_paid' : 'unpaid')]);
+        return array_merge($invoice, ['paid_minor' => $net, 'transferred_credit_minor' => $transferred, 'refunded_minor' => $refunded, 'pending_refund_minor' => $pendingRefunds, 'credit_minor' => $credit, 'disputed_minor' => $disputed, 'balance_minor' => $balance, 'overpayment_minor' => max(0, $net - $pendingRefunds - $due), 'payment_status' => $balance === 0 ? 'paid' : ($net > 0 ? 'partially_paid' : 'unpaid')]);
     }
 
     public function payment(string $id, int $amount, string $method, string $reference, string $key, array $extra = []): array
@@ -210,14 +212,33 @@ class FinanceService
                 if ($existing['status'] === 'pending' && $status === 'settled') {
                     return $this->records->update('refunds', $refundId, ['status' => 'settled', 'provider_id' => $providerId]);
                 }
+                if ($existing['status'] === 'failed' && $status === 'pending') {
+                    $this->ensureRefundable($payment, $amount, $providerId);
+
+                    return $this->records->update('refunds', $refundId, ['status' => 'pending']);
+                }
 
                 return $existing;
             }
-            $reserved = array_sum(array_map(fn (array $refund) => in_array($refund['status'], ['pending', 'settled'], true) ? $refund['amount_minor'] : 0, $this->records->all('refunds', ['payment_id' => $payment['id']])));
-            $this->ensure($amount > 0 && $reserved + $amount <= $payment['amount_minor'], 'amount_minor', 'Refund exceeds the payment remaining after other refunds.');
+            $this->ensureRefundable($payment, $amount, $providerId);
 
             return $this->records->create('refunds', ['payment_id' => $payment['id'], 'invoice_id' => $payment['invoice_id'], 'customer_id' => $payment['customer_id'], 'currency' => $payment['currency'], 'amount_minor' => $amount, 'reason' => $reason, 'status' => $status, 'provider_id' => $providerId, 'recorded_by' => auth()->id()], $refundId);
         });
+    }
+
+    /**
+     * A refund never exceeds what is left of its payment. Refunds started here are also limited to the money the
+     * invoice still holds after refunds, reversals, and credit moved to other invoices; a refund the provider
+     * reports as already made is recorded as reported.
+     */
+    private function ensureRefundable(array $payment, int $amount, ?string $providerId): void
+    {
+        $reserved = array_sum(array_map(fn (array $refund) => in_array($refund['status'], ['pending', 'settled'], true) ? $refund['amount_minor'] : 0, $this->records->all('refunds', ['payment_id' => $payment['id']])));
+        $this->ensure($amount > 0 && $reserved + $amount <= $payment['amount_minor'], 'amount_minor', 'Refund exceeds the payment remaining after other refunds.');
+        if ($providerId === null) {
+            $invoice = $this->balance($this->records->get('invoices', $payment['invoice_id']));
+            $this->ensure($amount <= $invoice['paid_minor'] - $invoice['pending_refund_minor'], 'amount_minor', 'Refund exceeds the money still held for this invoice after refunds, reversals, and credit transfers.');
+        }
     }
 
     public function state(string $id, string $status, string $reason): array

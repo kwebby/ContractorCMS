@@ -21,16 +21,31 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class FinanceController extends Controller
 {
+    /**
+     * Fields a customer sees on their own finance records: what their documents and receipts show, without
+     * staff attribution, internal notes, or provider references.
+     *
+     * @var array<string, list<string>>
+     */
+    private const CLIENT_FIELDS = [
+        'estimates' => ['id', 'version', 'title', 'status', 'customer_id', 'customer_name', 'currency', 'items', 'subtotal_minor', 'tax_minor', 'discount_minor', 'total_minor', 'notes', 'due_date', 'po_number', 'service_address', 'sent_at', 'accepted_at', 'created_at', 'updated_at'],
+        'invoices' => ['id', 'version', 'number', 'title', 'status', 'customer_id', 'customer_name', 'currency', 'items', 'subtotal_minor', 'tax_minor', 'discount_minor', 'total_minor', 'notes', 'due_date', 'po_number', 'service_address', 'issued_at', 'created_at', 'updated_at', 'paid_minor', 'refunded_minor', 'credit_minor', 'transferred_credit_minor', 'balance_minor', 'overpayment_minor', 'payment_status'],
+        'payments' => ['id', 'invoice_id', 'currency', 'amount_minor', 'method', 'reference', 'status', 'settled_at', 'created_at'],
+        'credit_notes' => ['id', 'invoice_id', 'number', 'currency', 'amount_minor', 'issued_at', 'created_at'],
+        'refunds' => ['id', 'payment_id', 'invoice_id', 'currency', 'amount_minor', 'status', 'created_at'],
+        'customer_deposits' => ['id', 'customer_id', 'currency', 'amount_minor', 'method', 'reference', 'status', 'received_at', 'created_at', 'allocated_minor', 'refunded_minor', 'available_minor'],
+    ];
+
     public function __construct(private RecordRepository $records, private FinanceService $finance, private PaymentGateway $gateways) {}
 
     public function estimates(Request $request): JsonResponse
     {
-        return response()->json(['data' => $this->visible($request, 'estimates', 'estimates.manage')]);
+        return response()->json(['data' => array_map(fn (array $estimate) => $this->forViewer($request, 'estimates', $estimate), $this->visible($request, 'estimates', 'estimates.manage'))]);
     }
 
     public function estimate(Request $request, string $id): JsonResponse
     {
-        return response()->json(['data' => $this->record($request, 'estimates', $id, 'estimates.manage')]);
+        return response()->json(['data' => $this->forViewer($request, 'estimates', $this->record($request, 'estimates', $id, 'estimates.manage'))]);
     }
 
     public function createEstimate(Request $request): JsonResponse
@@ -61,7 +76,7 @@ class FinanceController extends Controller
         $this->record($request, 'estimates', $id, 'estimates.manage');
         $version = $request->validate(['version' => 'required|integer|min:1'])['version'];
 
-        return response()->json(['data' => $this->finance->acceptEstimate($id, $version, (string) $request->user()->id, $request->ip())]);
+        return response()->json(['data' => $this->forViewer($request, 'estimates', $this->finance->acceptEstimate($id, $version, (string) $request->user()->id, $request->ip()))]);
     }
 
     public function duplicateEstimate(string $id): JsonResponse
@@ -76,14 +91,17 @@ class FinanceController extends Controller
 
     public function invoices(Request $request): JsonResponse
     {
-        return response()->json(['data' => array_map(fn (array $invoice) => $this->finance->balance($invoice), $this->visible($request, 'invoices', 'finance.manage'))]);
+        return response()->json(['data' => array_map(fn (array $invoice) => $this->forViewer($request, 'invoices', $this->finance->balance($invoice)), $this->visible($request, 'invoices', 'finance.manage'))]);
     }
 
     public function invoice(Request $request, string $id): JsonResponse
     {
-        $invoice = $this->record($request, 'invoices', $id, 'finance.manage');
+        $invoice = $this->forViewer($request, 'invoices', $this->finance->balance($this->record($request, 'invoices', $id, 'finance.manage')));
+        foreach (['payments' => 'payments', 'credits' => 'credit_notes', 'refunds' => 'refunds'] as $key => $collection) {
+            $invoice[$key] = array_map(fn (array $record) => $this->forViewer($request, $collection, $record), $this->records->all($collection, ['invoice_id' => $id]));
+        }
 
-        return response()->json(['data' => array_merge($this->finance->balance($invoice), ['payments' => $this->records->all('payments', ['invoice_id' => $id]), 'credits' => $this->records->all('credit_notes', ['invoice_id' => $id]), 'refunds' => $this->records->all('refunds', ['invoice_id' => $id])])]);
+        return response()->json(['data' => $invoice]);
     }
 
     public function createInvoice(Request $request): JsonResponse
@@ -129,6 +147,7 @@ class FinanceController extends Controller
         Access::authorize('finance.manage');
         $input = $request->validate(['amount_minor' => 'required|integer|min:1|max:'.Money::MAX_MINOR, 'method' => 'required|in:cash,cheque,bank_transfer', 'reference' => 'required|string|max:200', 'idempotency_key' => 'required|string|min:8|max:150']);
         $payment = $this->finance->payment($id, (int) $input['amount_minor'], $input['method'], $input['reference'], $input['idempotency_key']);
+        $this->gateways->expireStale($id);
 
         return response()->json(['data' => $payment]);
     }
@@ -137,8 +156,10 @@ class FinanceController extends Controller
     {
         Access::authorize('finance.manage');
         $input = $request->validate(['amount_minor' => 'required|integer|min:1|max:'.Money::MAX_MINOR, 'reason' => 'required|string|min:3|max:2000', 'idempotency_key' => 'required|string|min:8|max:150']);
+        $credit = $this->finance->credit($id, (int) $input['amount_minor'], $input['reason'], $input['idempotency_key']);
+        $this->gateways->expireStale($id);
 
-        return response()->json(['data' => $this->finance->credit($id, (int) $input['amount_minor'], $input['reason'], $input['idempotency_key'])]);
+        return response()->json(['data' => $credit]);
     }
 
     public function refund(Request $request, string $id): JsonResponse
@@ -178,7 +199,7 @@ class FinanceController extends Controller
     {
         $records = $this->visible($request, 'customer_deposits', 'finance.manage');
 
-        return response()->json(['data' => array_map(fn (array $deposit) => $this->finance->depositBalance($deposit), $records)]);
+        return response()->json(['data' => array_map(fn (array $deposit) => $this->forViewer($request, 'customer_deposits', $this->finance->depositBalance($deposit)), $records)]);
     }
 
     public function createDeposit(Request $request): JsonResponse
@@ -193,8 +214,10 @@ class FinanceController extends Controller
     {
         Access::authorize('finance.manage');
         $input = $request->validate(['invoice_id' => 'required|string|max:100', 'amount_minor' => 'required|integer|min:1|max:'.Money::MAX_MINOR, 'idempotency_key' => 'required|string|min:8|max:150']);
+        $allocation = $this->finance->allocateDeposit($id, $input['invoice_id'], (int) $input['amount_minor'], $input['idempotency_key']);
+        $this->gateways->expireStale($input['invoice_id']);
 
-        return response()->json(['data' => $this->finance->allocateDeposit($id, $input['invoice_id'], (int) $input['amount_minor'], $input['idempotency_key'])]);
+        return response()->json(['data' => $allocation]);
     }
 
     public function refundDeposit(Request $request, string $id): JsonResponse
@@ -210,8 +233,10 @@ class FinanceController extends Controller
     {
         Access::authorize('finance.manage');
         $input = $request->validate(['invoice_id' => 'required|string|max:100', 'amount_minor' => 'required|integer|min:1|max:'.Money::MAX_MINOR, 'idempotency_key' => 'required|string|min:8|max:150']);
+        $transfer = $this->finance->transferCredit($id, $input['invoice_id'], (int) $input['amount_minor'], $input['idempotency_key']);
+        $this->gateways->expireStale($input['invoice_id']);
 
-        return response()->json(['data' => $this->finance->transferCredit($id, $input['invoice_id'], (int) $input['amount_minor'], $input['idempotency_key'])]);
+        return response()->json(['data' => $transfer]);
     }
 
     public function providers(): JsonResponse
@@ -269,6 +294,11 @@ class FinanceController extends Controller
         Access::authorize($permission);
 
         return $this->records->all($collection);
+    }
+
+    private function forViewer(Request $request, string $collection, array $record): array
+    {
+        return $request->user()->role === 'client' ? Arr::only($record, self::CLIENT_FIELDS[$collection]) : $record;
     }
 
     private function record(Request $request, string $collection, string $id, string $permission): array
