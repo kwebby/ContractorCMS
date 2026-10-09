@@ -62,7 +62,9 @@ describe("authenticated API requests", () => {
             );
         const handler = (event: Event) =>
             (event as CustomEvent).detail.resolve(true);
-        window.addEventListener("contractorcms:reauth", handler, { once: true });
+        window.addEventListener("contractorcms:reauth", handler, {
+            once: true,
+        });
         await expect(
             api("settings/mail", "PUT", { host: "smtp.test" }),
         ).resolves.toEqual({ data: { saved: true } });
@@ -132,7 +134,9 @@ describe("authenticated API requests", () => {
             (event as CustomEvent).detail.resolve(true);
             window.dispatchEvent(new PopStateEvent("popstate"));
         };
-        window.addEventListener("contractorcms:reauth", handler, { once: true });
+        window.addEventListener("contractorcms:reauth", handler, {
+            once: true,
+        });
         await expect(api("settings/payments", "PUT", {})).rejects.toMatchObject(
             {
                 status: 423,

@@ -92,9 +92,7 @@ export default function Auth({
                     <span className="brand-mark">
                         <HardHat size={23} />
                     </span>
-                    <span>
-                        ContractorCMS
-                    </span>
+                    <span>ContractorCMS</span>
                 </a>
                 <div className="auth-story-body">
                     <div className="auth-grid-art" aria-hidden="true">

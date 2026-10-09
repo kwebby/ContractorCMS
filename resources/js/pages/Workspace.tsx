@@ -378,9 +378,7 @@ export default function Workspace({
                     <span className="brand-mark">
                         <HardHat size={23} strokeWidth={2} />
                     </span>
-                    <span>
-                        ContractorCMS
-                    </span>
+                    <span>ContractorCMS</span>
                 </Link>
                 <button
                     className="business-switch"
